@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Data and experiment outputs
+data/
+checkpoints/
+runs/
+logs/
+*.pt
+*.pth
+
+# Local paper archive and temporary downloads
+papers/
+nature-skills-unpacked/
+*.zip
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
