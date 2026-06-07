@@ -19,6 +19,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fit-start", default="2018-01-01", help="Normalizer fit start date.")
     parser.add_argument("--fit-end", default="2019-12-31", help="Normalizer fit end date.")
     parser.add_argument(
+        "--label-horizon",
+        type=int,
+        default=2,
+        help=(
+            "Forward label horizon. Qlib default is 2: Ref($close, -2) / "
+            "Ref($close, -1) - 1. Use 5 for five-day-ahead tradable return."
+        ),
+    )
+    parser.add_argument(
         "--out-dir",
         default="data/alpha158",
         help="Output directory for exported parquet files.",
@@ -48,17 +57,39 @@ def main() -> None:
     )
 
     features = handler.fetch(col_set="feature")
-    labels = handler.fetch(col_set="label")
+    labels = build_forward_label(
+        instruments=args.instruments,
+        start=args.start,
+        end=args.end,
+        horizon=args.label_horizon,
+    )
 
     suffix = f"{args.instruments}_{args.start}_{args.end}".replace("-", "")
     feature_path = out_dir / f"features_alpha158_{suffix}.parquet"
-    label_path = out_dir / f"labels_alpha158_{suffix}.parquet"
+    label_path = out_dir / f"labels_h{args.label_horizon}_{suffix}.parquet"
 
     features.to_parquet(feature_path)
     labels.to_parquet(label_path)
 
     print(f"features: {feature_path.resolve()} shape={features.shape}")
     print(f"labels:   {label_path.resolve()} shape={labels.shape}")
+
+
+def build_forward_label(instruments: str, start: str, end: str, horizon: int):
+    if horizon < 2:
+        raise ValueError("label-horizon should be >= 2 for tradable T+1 to T+horizon return")
+    from qlib.data import D
+
+    expr = f"Ref($close, -{horizon}) / Ref($close, -1) - 1"
+    labels = D.features(
+        instruments=instruments,
+        fields=[expr],
+        start_time=start,
+        end_time=end,
+        freq="day",
+    )
+    labels.columns = ["LABEL0"]
+    return labels
 
 
 if __name__ == "__main__":

@@ -47,8 +47,17 @@ bash scripts/dump_alpha158.sh
 Override defaults with environment variables:
 
 ```bash
-INSTRUMENTS=csi300 START=2018-01-01 END=2023-12-31 bash scripts/dump_alpha158.sh
+INSTRUMENTS=csi300 START=2018-01-01 END=2023-12-31 LABEL_HORIZON=5 bash scripts/dump_alpha158.sh
 ```
+
+The exported label is:
+
+```text
+LABEL0 = Ref($close, -LABEL_HORIZON) / Ref($close, -1) - 1
+```
+
+With the default `LABEL_HORIZON=5`, this is the tradable forward return from
+T+1 close to T+5 close.
 
 ## Train MDGNN-lite
 

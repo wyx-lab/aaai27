@@ -7,6 +7,7 @@ START="${START:-2018-01-01}"
 END="${END:-2023-12-31}"
 FIT_START="${FIT_START:-2018-01-01}"
 FIT_END="${FIT_END:-2019-12-31}"
+LABEL_HORIZON="${LABEL_HORIZON:-5}"
 OUT_DIR="${OUT_DIR:-data/alpha158}"
 QLIB_REPO_DIR="${QLIB_REPO_DIR:-/tmp/qlib}"
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
@@ -28,5 +29,5 @@ python scripts/export_alpha158_qlib.py \
   --end "${END}" \
   --fit-start "${FIT_START}" \
   --fit-end "${FIT_END}" \
+  --label-horizon "${LABEL_HORIZON}" \
   --out-dir "${OUT_DIR}"
-
