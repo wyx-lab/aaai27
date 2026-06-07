@@ -16,6 +16,8 @@ EPOCHS="${EPOCHS:-20}"
 LR="${LR:-0.001}"
 HIDDEN_DIM="${HIDDEN_DIM:-128}"
 OUT="${OUT:-checkpoints/mdgnn_lite.pt}"
+DEBUG="${DEBUG:-0}"
+DEBUG_BATCHES="${DEBUG_BATCHES:-2}"
 
 cmd=(
   python -m src.mdgnn_lite.train
@@ -33,5 +35,8 @@ if [[ -n "${RELATIONS}" ]]; then
   cmd+=(--relations "${RELATIONS}")
 fi
 
-"${cmd[@]}"
+if [[ "${DEBUG}" == "1" ]]; then
+  cmd+=(--debug --debug-batches "${DEBUG_BATCHES}")
+fi
 
+"${cmd[@]}"

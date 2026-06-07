@@ -75,3 +75,9 @@ Example with relations:
 ```bash
 RELATIONS=data/relations/csi300_relations.npy bash scripts/train_mdgnn_lite.sh
 ```
+
+Debug NaN losses:
+
+```bash
+DEBUG=1 DEBUG_BATCHES=3 bash scripts/train_mdgnn_lite.sh
+```

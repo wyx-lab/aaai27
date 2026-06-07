@@ -14,6 +14,9 @@ class Alpha158Meta:
     dates: list[pd.Timestamp]
     instruments: list[str]
     feature_dim: int
+    feature_nan_count: int
+    label_nan_count: int
+    valid_ratio: float
 
 
 class Alpha158WindowDataset(Dataset):
@@ -70,12 +73,21 @@ class Alpha158WindowDataset(Dataset):
         arr = np.transpose(arr, (0, 2, 1))
         label_arr = label_panel.to_numpy(dtype=np.float32)
 
+        feature_nan_count = int((~np.isfinite(arr)).sum())
+        label_nan_count = int((~np.isfinite(label_arr)).sum())
         feature_valid = np.isfinite(arr).all(axis=-1)
         label_valid = np.isfinite(label_arr)
         self.features = np.nan_to_num(arr, nan=fillna, posinf=fillna, neginf=fillna)
-        self.labels = label_arr
+        self.labels = np.nan_to_num(label_arr, nan=fillna, posinf=fillna, neginf=fillna)
         self.valid = feature_valid & label_valid
-        self.meta = Alpha158Meta(dates=dates, instruments=instruments, feature_dim=self.features.shape[-1])
+        self.meta = Alpha158Meta(
+            dates=dates,
+            instruments=instruments,
+            feature_dim=self.features.shape[-1],
+            feature_nan_count=feature_nan_count,
+            label_nan_count=label_nan_count,
+            valid_ratio=float(self.valid.mean()),
+        )
 
     def __len__(self) -> int:
         return len(self.meta.dates) - self.window
@@ -102,4 +114,3 @@ def _normalize_qlib_frame(df: pd.DataFrame) -> pd.DataFrame:
         else:
             raise ValueError(f"Unexpected index names: {names}")
     return df.sort_index()
-

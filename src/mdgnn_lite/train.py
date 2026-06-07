@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 from .dataset import Alpha158WindowDataset
 from .graph import identity_relation, load_relation_tensor
-from .model import MDGNNLite
+from .model import MDGNNLite, tensor_debug
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,6 +26,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hidden-dim", type=int, default=128)
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--out", default="checkpoints/mdgnn_lite.pt")
+    parser.add_argument("--debug", action="store_true", help="Print tensor diagnostics during training.")
+    parser.add_argument("--debug-batches", type=int, default=2, help="Number of initial batches to debug.")
     return parser.parse_args()
 
 
@@ -38,6 +40,13 @@ def main() -> None:
         end=args.end,
         window=args.window,
     )
+    print(
+        "dataset: "
+        f"dates={len(dataset.meta.dates)} instruments={len(dataset.meta.instruments)} "
+        f"feature_dim={dataset.meta.feature_dim} samples={len(dataset)} "
+        f"feature_nan={dataset.meta.feature_nan_count} label_nan={dataset.meta.label_nan_count} "
+        f"valid_ratio={dataset.meta.valid_ratio:.4f}"
+    )
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, drop_last=False)
 
     if args.relations:
@@ -45,6 +54,9 @@ def main() -> None:
     else:
         relations = identity_relation(len(dataset.meta.instruments))
     relations = relations.to(args.device)
+    if not torch.isfinite(relations).all():
+        print(tensor_debug("relations", relations))
+        raise ValueError("Relation tensor contains NaN or Inf")
 
     model = MDGNNLite(
         feature_dim=dataset.meta.feature_dim,
@@ -58,22 +70,55 @@ def main() -> None:
         model.train()
         total_loss = 0.0
         total_count = 0
-        for batch in loader:
+        skipped = 0
+        for batch_idx, batch in enumerate(loader):
             x = batch["x"].to(args.device)
             y = batch["y"].to(args.device)
             mask = batch["mask"].to(args.device)
-            pred = model(x, relations)
+            valid_count = int(mask.sum().item())
+            should_debug = args.debug and (batch_idx < args.debug_batches)
+            if should_debug:
+                print(f"batch={batch_idx} valid_count={valid_count}/{mask.numel()}")
+                print(tensor_debug("batch.x", x))
+                print(tensor_debug("batch.y", y))
+                print(tensor_debug("batch.mask.float", mask.float()))
+            if valid_count == 0:
+                skipped += 1
+                if should_debug:
+                    print(f"batch={batch_idx} skipped because mask has no valid entries")
+                continue
+
+            pred = model(x, relations, debug=should_debug)
             loss = loss_fn(pred, y)
+            if should_debug:
+                print(tensor_debug("batch.pred", pred))
+                print(tensor_debug("batch.loss_raw", loss))
             loss = loss[mask].mean()
+            if not torch.isfinite(loss):
+                print("non-finite loss detected")
+                print(f"epoch={epoch} batch={batch_idx} valid_count={valid_count}/{mask.numel()}")
+                print(tensor_debug("x", x))
+                print(tensor_debug("y", y))
+                print(tensor_debug("pred", pred))
+                print(tensor_debug("loss_raw", loss_fn(pred, y)))
+                print(tensor_debug("relations", relations))
+                raise FloatingPointError("Loss became NaN or Inf")
 
             optim.zero_grad()
             loss.backward()
-            nn.utils.clip_grad_norm_(model.parameters(), 3.0)
+            grad_norm = nn.utils.clip_grad_norm_(model.parameters(), 3.0)
+            if should_debug:
+                print(f"batch={batch_idx} loss={float(loss.detach()):.6g} grad_norm={float(grad_norm):.6g}")
+            if not torch.isfinite(grad_norm):
+                raise FloatingPointError("Gradient norm became NaN or Inf")
             optim.step()
 
             total_loss += float(loss.detach()) * int(mask.sum())
             total_count += int(mask.sum())
-        print(f"epoch={epoch:03d} loss={total_loss / max(total_count, 1):.6f}")
+        print(
+            f"epoch={epoch:03d} loss={total_loss / max(total_count, 1):.6f} "
+            f"valid_count={total_count} skipped_batches={skipped}"
+        )
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
