@@ -20,12 +20,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start", default=None)
     parser.add_argument("--end", default=None)
     parser.add_argument("--window", type=int, default=10)
-    parser.add_argument(
-        "--min-feature-valid-ratio",
-        type=float,
-        default=0.5,
-        help="Minimum finite Alpha158 feature ratio per stock/date before filling NaNs.",
-    )
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -45,14 +39,13 @@ def main() -> None:
         start=args.start,
         end=args.end,
         window=args.window,
-        min_feature_valid_ratio=args.min_feature_valid_ratio,
     )
     print(
         "dataset: "
         f"dates={len(dataset.meta.dates)} instruments={len(dataset.meta.instruments)} "
         f"feature_dim={dataset.meta.feature_dim} samples={len(dataset)} "
-        f"feature_nan={dataset.meta.feature_nan_count} label_nan={dataset.meta.label_nan_count} "
-        f"valid_ratio={dataset.meta.valid_ratio:.4f}"
+        f"feature_nan_filled={dataset.meta.feature_nan_count} "
+        f"label_nan_filled={dataset.meta.label_nan_count}"
     )
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, drop_last=False)
 

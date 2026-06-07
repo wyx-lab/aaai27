@@ -16,7 +16,6 @@ class Alpha158Meta:
     feature_dim: int
     feature_nan_count: int
     label_nan_count: int
-    valid_ratio: float
 
 
 class Alpha158WindowDataset(Dataset):
@@ -37,11 +36,9 @@ class Alpha158WindowDataset(Dataset):
         window: int = 10,
         label_col: str | None = None,
         fillna: float = 0.0,
-        min_feature_valid_ratio: float = 0.5,
     ) -> None:
         self.window = window
         self.fillna = fillna
-        self.min_feature_valid_ratio = min_feature_valid_ratio
 
         features = pd.read_parquet(feature_path)
         labels = pd.read_parquet(label_path)
@@ -77,21 +74,14 @@ class Alpha158WindowDataset(Dataset):
 
         feature_nan_count = int((~np.isfinite(arr)).sum())
         label_nan_count = int((~np.isfinite(label_arr)).sum())
-        feature_valid_ratio = np.isfinite(arr).mean(axis=-1)
-        feature_valid = feature_valid_ratio >= min_feature_valid_ratio
-        label_valid = np.isfinite(label_arr)
         self.features = np.nan_to_num(arr, nan=fillna, posinf=fillna, neginf=fillna)
         self.labels = np.nan_to_num(label_arr, nan=fillna, posinf=fillna, neginf=fillna)
-        self.feature_valid = feature_valid
-        self.label_valid = label_valid
-        self.valid = feature_valid & label_valid
         self.meta = Alpha158Meta(
             dates=dates,
             instruments=instruments,
             feature_dim=self.features.shape[-1],
             feature_nan_count=feature_nan_count,
             label_nan_count=label_nan_count,
-            valid_ratio=float(self.valid.mean()),
         )
 
     def __len__(self) -> int:
@@ -101,10 +91,10 @@ class Alpha158WindowDataset(Dataset):
         end = idx + self.window
         x = self.features[idx:end]
         y = self.labels[end]
-        mask = self.feature_valid[idx:end].all(axis=0) & self.label_valid[end]
+        mask = np.ones_like(y, dtype=bool)
         return {
             "x": torch.from_numpy(np.transpose(x, (1, 0, 2))).float(),
-            "y": torch.from_numpy(np.nan_to_num(y, nan=0.0)).float(),
+            "y": torch.from_numpy(y).float(),
             "mask": torch.from_numpy(mask).bool(),
         }
 
