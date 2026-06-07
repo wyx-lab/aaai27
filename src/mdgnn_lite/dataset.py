@@ -16,6 +16,8 @@ class Alpha158Meta:
     feature_dim: int
     feature_nan_count: int
     label_nan_count: int
+    feature_clip_count: int
+    label_clip_count: int
 
 
 class Alpha158WindowDataset(Dataset):
@@ -36,6 +38,9 @@ class Alpha158WindowDataset(Dataset):
         window: int = 10,
         label_col: str | None = None,
         fillna: float = 0.0,
+        feature_clip: float | None = 10.0,
+        label_clip: float | None = 0.2,
+        standardize: bool = True,
     ) -> None:
         self.window = window
         self.fillna = fillna
@@ -76,12 +81,26 @@ class Alpha158WindowDataset(Dataset):
         label_nan_count = int((~np.isfinite(label_arr)).sum())
         self.features = np.nan_to_num(arr, nan=fillna, posinf=fillna, neginf=fillna)
         self.labels = np.nan_to_num(label_arr, nan=fillna, posinf=fillna, neginf=fillna)
+        if standardize:
+            mean = self.features.mean(axis=(0, 1), keepdims=True)
+            std = self.features.std(axis=(0, 1), keepdims=True)
+            self.features = (self.features - mean) / np.maximum(std, 1e-6)
+        feature_clip_count = 0
+        label_clip_count = 0
+        if feature_clip is not None:
+            feature_clip_count = int((np.abs(self.features) > feature_clip).sum())
+            self.features = np.clip(self.features, -feature_clip, feature_clip)
+        if label_clip is not None:
+            label_clip_count = int((np.abs(self.labels) > label_clip).sum())
+            self.labels = np.clip(self.labels, -label_clip, label_clip)
         self.meta = Alpha158Meta(
             dates=dates,
             instruments=instruments,
             feature_dim=self.features.shape[-1],
             feature_nan_count=feature_nan_count,
             label_nan_count=label_nan_count,
+            feature_clip_count=feature_clip_count,
+            label_clip_count=label_clip_count,
         )
 
     def __len__(self) -> int:

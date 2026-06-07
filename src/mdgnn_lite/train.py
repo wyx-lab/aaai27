@@ -25,6 +25,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--valid-end", default=None, help="Target-date validation end. Defaults to last sample.")
     parser.add_argument("--window", type=int, default=10)
     parser.add_argument("--valid-ratio", type=float, default=0.2, help="Validation ratio when valid-start is absent.")
+    parser.add_argument("--feature-clip", type=float, default=10.0, help="Clip standardized feature values.")
+    parser.add_argument("--label-clip", type=float, default=0.2, help="Clip label values before training.")
+    parser.add_argument("--no-standardize", action="store_true", help="Disable feature standardization.")
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -44,13 +47,18 @@ def main() -> None:
         start=args.start,
         end=args.end,
         window=args.window,
+        feature_clip=args.feature_clip,
+        label_clip=args.label_clip,
+        standardize=not args.no_standardize,
     )
     print(
         "dataset: "
         f"dates={len(dataset.meta.dates)} instruments={len(dataset.meta.instruments)} "
         f"feature_dim={dataset.meta.feature_dim} samples={len(dataset)} "
         f"feature_nan_filled={dataset.meta.feature_nan_count} "
-        f"label_nan_filled={dataset.meta.label_nan_count}"
+        f"label_nan_filled={dataset.meta.label_nan_count} "
+        f"feature_clipped={dataset.meta.feature_clip_count} "
+        f"label_clipped={dataset.meta.label_clip_count}"
     )
     train_indices, valid_indices = split_indices_by_date(dataset, args)
     train_loader = DataLoader(Subset(dataset, train_indices), batch_size=args.batch_size, shuffle=True, drop_last=False)
@@ -120,6 +128,7 @@ def main() -> None:
             if should_debug:
                 print(f"batch={batch_idx} loss={float(loss.detach()):.6g} grad_norm={float(grad_norm):.6g}")
             if not torch.isfinite(grad_norm):
+                print_nonfinite_grads(model)
                 raise FloatingPointError("Gradient norm became NaN or Inf")
             optim.step()
 
@@ -277,6 +286,21 @@ def safe_mean(values: list[float]) -> float:
     if not values:
         return float("nan")
     return float(sum(values) / len(values))
+
+
+def print_nonfinite_grads(model: nn.Module) -> None:
+    print("non-finite gradients detected by parameter:")
+    for name, param in model.named_parameters():
+        if param.grad is None:
+            continue
+        grad = param.grad.detach()
+        if torch.isfinite(grad).all():
+            continue
+        finite = torch.isfinite(grad)
+        finite_count = int(finite.sum().item())
+        total = grad.numel()
+        print(tensor_debug(f"grad.{name}", grad))
+        print(f"grad.{name}: finite={finite_count}/{total}")
 
 
 if __name__ == "__main__":
