@@ -41,26 +41,25 @@ python scripts/get_data.py qlib_data \
 From this repository:
 
 ```bash
-python scripts/export_alpha158_qlib.py \
-  --provider-uri ~/.qlib/qlib_data/cn_data \
-  --instruments csi300 \
-  --start 2018-01-01 \
-  --end 2023-12-31 \
-  --fit-start 2018-01-01 \
-  --fit-end 2019-12-31 \
-  --out-dir data/alpha158
+bash scripts/dump_alpha158.sh
+```
+
+Override defaults with environment variables:
+
+```bash
+INSTRUMENTS=csi300 START=2018-01-01 END=2023-12-31 bash scripts/dump_alpha158.sh
 ```
 
 ## Train MDGNN-lite
 
 ```bash
-python -m src.mdgnn_lite.train \
-  --features data/alpha158/features_alpha158_csi300_20180101_20231231.parquet \
-  --labels data/alpha158/labels_alpha158_csi300_20180101_20231231.parquet \
-  --window 10 \
-  --batch-size 8 \
-  --epochs 20 \
-  --out checkpoints/mdgnn_lite.pt
+bash scripts/train_mdgnn_lite.sh
+```
+
+Override defaults with environment variables:
+
+```bash
+EPOCHS=50 BATCH_SIZE=4 WINDOW=20 bash scripts/train_mdgnn_lite.sh
 ```
 
 The trainer can also consume relation graphs:
@@ -70,3 +69,9 @@ The trainer can also consume relation graphs:
 
 When no relation graph is provided, it uses identity edges so the data/model
 pipeline can be tested first.
+
+Example with relations:
+
+```bash
+RELATIONS=data/relations/csi300_relations.npy bash scripts/train_mdgnn_lite.sh
+```
