@@ -62,6 +62,17 @@ Override defaults with environment variables:
 EPOCHS=50 BATCH_SIZE=4 WINDOW=20 bash scripts/train_mdgnn_lite.sh
 ```
 
+Use explicit train/validation target-date ranges:
+
+```bash
+TRAIN_START=2018-01-01 TRAIN_END=2022-12-31 \
+VALID_START=2023-01-01 VALID_END=2023-12-31 \
+bash scripts/train_mdgnn_lite.sh
+```
+
+Training logs include dataset range, train/validation ranges, batch tensor
+shapes, loss function, validation loss, validation IC, and validation RankIC.
+
 The trainer can also consume relation graphs:
 
 - `.npy` / `.npz`: `[num_relations, num_stocks, num_stocks]`

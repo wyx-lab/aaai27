@@ -98,6 +98,9 @@ class Alpha158WindowDataset(Dataset):
             "mask": torch.from_numpy(mask).bool(),
         }
 
+    def sample_target_dates(self) -> list[pd.Timestamp]:
+        return self.meta.dates[self.window :]
+
 
 def _normalize_qlib_frame(df: pd.DataFrame) -> pd.DataFrame:
     if not isinstance(df.index, pd.MultiIndex):

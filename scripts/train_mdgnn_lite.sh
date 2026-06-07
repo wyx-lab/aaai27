@@ -9,6 +9,11 @@ FEATURES="${FEATURES:-data/alpha158/features_alpha158_${INSTRUMENTS}_${START_COM
 LABELS="${LABELS:-data/alpha158/labels_alpha158_${INSTRUMENTS}_${START_COMPACT}_${END_COMPACT}.parquet}"
 RELATIONS="${RELATIONS:-}"
 WINDOW="${WINDOW:-10}"
+TRAIN_START="${TRAIN_START:-}"
+TRAIN_END="${TRAIN_END:-}"
+VALID_START="${VALID_START:-}"
+VALID_END="${VALID_END:-}"
+VALID_RATIO="${VALID_RATIO:-0.2}"
 BATCH_SIZE="${BATCH_SIZE:-8}"
 EPOCHS="${EPOCHS:-20}"
 LR="${LR:-0.001}"
@@ -22,6 +27,7 @@ cmd=(
   --features "${FEATURES}"
   --labels "${LABELS}"
   --window "${WINDOW}"
+  --valid-ratio "${VALID_RATIO}"
   --batch-size "${BATCH_SIZE}"
   --epochs "${EPOCHS}"
   --lr "${LR}"
@@ -31,6 +37,22 @@ cmd=(
 
 if [[ -n "${RELATIONS}" ]]; then
   cmd+=(--relations "${RELATIONS}")
+fi
+
+if [[ -n "${TRAIN_START}" ]]; then
+  cmd+=(--train-start "${TRAIN_START}")
+fi
+
+if [[ -n "${TRAIN_END}" ]]; then
+  cmd+=(--train-end "${TRAIN_END}")
+fi
+
+if [[ -n "${VALID_START}" ]]; then
+  cmd+=(--valid-start "${VALID_START}")
+fi
+
+if [[ -n "${VALID_END}" ]]; then
+  cmd+=(--valid-end "${VALID_END}")
 fi
 
 if [[ "${DEBUG}" == "1" ]]; then

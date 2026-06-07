@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 from torch import nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 from .dataset import Alpha158WindowDataset
 from .graph import identity_relation, load_relation_tensor
@@ -19,7 +19,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--relations", default=None, help="Optional .npy/.npz/.csv relation graph.")
     parser.add_argument("--start", default=None)
     parser.add_argument("--end", default=None)
+    parser.add_argument("--train-start", default=None, help="Target-date training start. Defaults to first sample.")
+    parser.add_argument("--train-end", default=None, help="Target-date training end. Defaults to before validation.")
+    parser.add_argument("--valid-start", default=None, help="Target-date validation start. Defaults to final 20%.")
+    parser.add_argument("--valid-end", default=None, help="Target-date validation end. Defaults to last sample.")
     parser.add_argument("--window", type=int, default=10)
+    parser.add_argument("--valid-ratio", type=float, default=0.2, help="Validation ratio when valid-start is absent.")
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -47,7 +52,10 @@ def main() -> None:
         f"feature_nan_filled={dataset.meta.feature_nan_count} "
         f"label_nan_filled={dataset.meta.label_nan_count}"
     )
-    loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, drop_last=False)
+    train_indices, valid_indices = split_indices_by_date(dataset, args)
+    train_loader = DataLoader(Subset(dataset, train_indices), batch_size=args.batch_size, shuffle=True, drop_last=False)
+    valid_loader = DataLoader(Subset(dataset, valid_indices), batch_size=args.batch_size, shuffle=False, drop_last=False)
+    print_side_info(dataset, train_indices, valid_indices, args)
 
     if args.relations:
         relations = load_relation_tensor(args.relations, dataset.meta.instruments)
@@ -65,13 +73,15 @@ def main() -> None:
     ).to(args.device)
     optim = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     loss_fn = nn.MSELoss(reduction="none")
+    print("loss_fn: masked MSELoss(reduction='none').mean()")
+    print("metrics: validation loss, daily cross-sectional IC, daily cross-sectional RankIC")
 
     for epoch in range(1, args.epochs + 1):
         model.train()
         total_loss = 0.0
         total_count = 0
         skipped = 0
-        for batch_idx, batch in enumerate(loader):
+        for batch_idx, batch in enumerate(train_loader):
             x = batch["x"].to(args.device)
             y = batch["y"].to(args.device)
             mask = batch["mask"].to(args.device)
@@ -119,6 +129,12 @@ def main() -> None:
             f"epoch={epoch:03d} loss={total_loss / max(total_count, 1):.6f} "
             f"valid_count={total_count} skipped_batches={skipped}"
         )
+        valid_stats = evaluate(model, valid_loader, relations, loss_fn, args.device)
+        print(
+            f"epoch={epoch:03d} valid_loss={valid_stats['loss']:.6f} "
+            f"valid_ic={valid_stats['ic']:.6f} valid_rankic={valid_stats['rankic']:.6f} "
+            f"valid_count={valid_stats['count']}"
+        )
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -133,6 +149,134 @@ def main() -> None:
         out,
     )
     print(f"saved: {out.resolve()}")
+
+
+def split_indices_by_date(dataset: Alpha158WindowDataset, args: argparse.Namespace) -> tuple[list[int], list[int]]:
+    target_dates = dataset.sample_target_dates()
+    all_indices = list(range(len(target_dates)))
+    valid_start = args.valid_start
+    valid_end = args.valid_end
+    train_start = args.train_start
+    train_end = args.train_end
+
+    if valid_start is None:
+        valid_size = max(1, int(len(all_indices) * args.valid_ratio))
+        valid_start_idx = max(0, len(all_indices) - valid_size)
+        valid_start = str(target_dates[valid_start_idx].date())
+
+    train_indices: list[int] = []
+    valid_indices: list[int] = []
+    for idx, date in enumerate(target_dates):
+        if train_start is not None and date < torch_timestamp(train_start):
+            continue
+        if valid_start is not None and date >= torch_timestamp(valid_start):
+            if valid_end is None or date <= torch_timestamp(valid_end):
+                valid_indices.append(idx)
+            continue
+        if train_end is None or date <= torch_timestamp(train_end):
+            train_indices.append(idx)
+
+    if not train_indices:
+        raise ValueError("No training samples after date split")
+    if not valid_indices:
+        raise ValueError("No validation samples after date split")
+    return train_indices, valid_indices
+
+
+def torch_timestamp(value: str):
+    import pandas as pd
+
+    return pd.Timestamp(value)
+
+
+def print_side_info(
+    dataset: Alpha158WindowDataset,
+    train_indices: list[int],
+    valid_indices: list[int],
+    args: argparse.Namespace,
+) -> None:
+    target_dates = dataset.sample_target_dates()
+    first_item = dataset[train_indices[0]]
+    valid_item = dataset[valid_indices[0]]
+    print(
+        "split: "
+        f"train_samples={len(train_indices)} valid_samples={len(valid_indices)} "
+        f"train_range={target_dates[train_indices[0]].date()}..{target_dates[train_indices[-1]].date()} "
+        f"valid_range={target_dates[valid_indices[0]].date()}..{target_dates[valid_indices[-1]].date()}"
+    )
+    print(
+        "batch_shapes: "
+        f"x_per_sample={tuple(first_item['x'].shape)} y_per_sample={tuple(first_item['y'].shape)} "
+        f"mask_per_sample={tuple(first_item['mask'].shape)} batch_size={args.batch_size}"
+    )
+    print(
+        "valid_shapes: "
+        f"x_per_sample={tuple(valid_item['x'].shape)} y_per_sample={tuple(valid_item['y'].shape)} "
+        f"mask_per_sample={tuple(valid_item['mask'].shape)}"
+    )
+
+
+@torch.no_grad()
+def evaluate(
+    model: MDGNNLite,
+    loader: DataLoader,
+    relations: torch.Tensor,
+    loss_fn: nn.Module,
+    device: str,
+) -> dict[str, float]:
+    model.eval()
+    total_loss = 0.0
+    total_count = 0
+    daily_ic: list[float] = []
+    daily_rankic: list[float] = []
+    for batch in loader:
+        x = batch["x"].to(device)
+        y = batch["y"].to(device)
+        mask = batch["mask"].to(device)
+        pred = model(x, relations)
+        loss = loss_fn(pred, y)
+        total_loss += float(loss[mask].sum().detach())
+        total_count += int(mask.sum().item())
+        daily_ic.extend(batch_corr(pred, y, mask, rank=False))
+        daily_rankic.extend(batch_corr(pred, y, mask, rank=True))
+    return {
+        "loss": total_loss / max(total_count, 1),
+        "ic": safe_mean(daily_ic),
+        "rankic": safe_mean(daily_rankic),
+        "count": float(total_count),
+    }
+
+
+def batch_corr(pred: torch.Tensor, y: torch.Tensor, mask: torch.Tensor, rank: bool) -> list[float]:
+    values: list[float] = []
+    for p_row, y_row, m_row in zip(pred.detach().cpu(), y.detach().cpu(), mask.detach().cpu()):
+        p = p_row[m_row].float()
+        t = y_row[m_row].float()
+        if p.numel() < 2:
+            continue
+        if rank:
+            p = rank_tensor(p)
+            t = rank_tensor(t)
+        p = p - p.mean()
+        t = t - t.mean()
+        denom = torch.sqrt((p.square().sum() * t.square().sum()).clamp_min(1e-12))
+        corr = float((p * t).sum() / denom)
+        if torch.isfinite(torch.tensor(corr)):
+            values.append(corr)
+    return values
+
+
+def rank_tensor(x: torch.Tensor) -> torch.Tensor:
+    order = torch.argsort(x, stable=True)
+    ranks = torch.empty_like(x)
+    ranks[order] = torch.arange(len(x), dtype=x.dtype)
+    return ranks
+
+
+def safe_mean(values: list[float]) -> float:
+    if not values:
+        return float("nan")
+    return float(sum(values) / len(values))
 
 
 if __name__ == "__main__":
