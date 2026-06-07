@@ -81,3 +81,9 @@ Debug NaN losses:
 ```bash
 DEBUG=1 DEBUG_BATCHES=3 bash scripts/train_mdgnn_lite.sh
 ```
+
+If `valid_ratio` is very low, relax feature validity before filled NaNs are masked:
+
+```bash
+MIN_FEATURE_VALID_RATIO=0.3 DEBUG=1 bash scripts/train_mdgnn_lite.sh
+```

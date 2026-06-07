@@ -18,6 +18,7 @@ HIDDEN_DIM="${HIDDEN_DIM:-128}"
 OUT="${OUT:-checkpoints/mdgnn_lite.pt}"
 DEBUG="${DEBUG:-0}"
 DEBUG_BATCHES="${DEBUG_BATCHES:-2}"
+MIN_FEATURE_VALID_RATIO="${MIN_FEATURE_VALID_RATIO:-0.5}"
 
 cmd=(
   python -m src.mdgnn_lite.train
@@ -28,6 +29,7 @@ cmd=(
   --epochs "${EPOCHS}"
   --lr "${LR}"
   --hidden-dim "${HIDDEN_DIM}"
+  --min-feature-valid-ratio "${MIN_FEATURE_VALID_RATIO}"
   --out "${OUT}"
 )
 
