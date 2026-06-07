@@ -25,9 +25,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--valid-end", default=None, help="Target-date validation end. Defaults to last sample.")
     parser.add_argument("--window", type=int, default=10)
     parser.add_argument("--valid-ratio", type=float, default=0.2, help="Validation ratio when valid-start is absent.")
-    parser.add_argument("--feature-clip", type=float, default=10.0, help="Clip standardized feature values.")
+    parser.add_argument("--feature-norm", choices=["zscore", "robust", "none"], default="zscore")
+    parser.add_argument("--feature-clip", type=float, default=10.0, help="Clip normalized feature values.")
     parser.add_argument("--label-clip", type=float, default=0.2, help="Clip label values before training.")
-    parser.add_argument("--no-standardize", action="store_true", help="Disable feature standardization.")
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -47,20 +47,20 @@ def main() -> None:
         start=args.start,
         end=args.end,
         window=args.window,
-        feature_clip=args.feature_clip,
         label_clip=args.label_clip,
-        standardize=not args.no_standardize,
     )
+    train_indices, valid_indices = split_indices_by_date(dataset, args)
+    dataset.normalize_features(train_indices, mode=args.feature_norm, clip=args.feature_clip)
     print(
         "dataset: "
         f"dates={len(dataset.meta.dates)} instruments={len(dataset.meta.instruments)} "
         f"feature_dim={dataset.meta.feature_dim} samples={len(dataset)} "
+        f"feature_norm={dataset.meta.feature_norm} "
         f"feature_nan_filled={dataset.meta.feature_nan_count} "
         f"label_nan_filled={dataset.meta.label_nan_count} "
         f"feature_clipped={dataset.meta.feature_clip_count} "
         f"label_clipped={dataset.meta.label_clip_count}"
     )
-    train_indices, valid_indices = split_indices_by_date(dataset, args)
     train_loader = DataLoader(Subset(dataset, train_indices), batch_size=args.batch_size, shuffle=True, drop_last=False)
     valid_loader = DataLoader(Subset(dataset, valid_indices), batch_size=args.batch_size, shuffle=False, drop_last=False)
     print_side_info(dataset, train_indices, valid_indices, args)

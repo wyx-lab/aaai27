@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import Dataset
 
 
-@dataclass(frozen=True)
+@dataclass
 class Alpha158Meta:
     dates: list[pd.Timestamp]
     instruments: list[str]
@@ -18,6 +18,7 @@ class Alpha158Meta:
     label_nan_count: int
     feature_clip_count: int
     label_clip_count: int
+    feature_norm: str = "none"
 
 
 class Alpha158WindowDataset(Dataset):
@@ -38,9 +39,7 @@ class Alpha158WindowDataset(Dataset):
         window: int = 10,
         label_col: str | None = None,
         fillna: float = 0.0,
-        feature_clip: float | None = 10.0,
         label_clip: float | None = 0.2,
-        standardize: bool = True,
     ) -> None:
         self.window = window
         self.fillna = fillna
@@ -81,15 +80,7 @@ class Alpha158WindowDataset(Dataset):
         label_nan_count = int((~np.isfinite(label_arr)).sum())
         self.features = np.nan_to_num(arr, nan=fillna, posinf=fillna, neginf=fillna)
         self.labels = np.nan_to_num(label_arr, nan=fillna, posinf=fillna, neginf=fillna)
-        if standardize:
-            mean = self.features.mean(axis=(0, 1), keepdims=True)
-            std = self.features.std(axis=(0, 1), keepdims=True)
-            self.features = (self.features - mean) / np.maximum(std, 1e-6)
-        feature_clip_count = 0
         label_clip_count = 0
-        if feature_clip is not None:
-            feature_clip_count = int((np.abs(self.features) > feature_clip).sum())
-            self.features = np.clip(self.features, -feature_clip, feature_clip)
         if label_clip is not None:
             label_clip_count = int((np.abs(self.labels) > label_clip).sum())
             self.labels = np.clip(self.labels, -label_clip, label_clip)
@@ -99,7 +90,7 @@ class Alpha158WindowDataset(Dataset):
             feature_dim=self.features.shape[-1],
             feature_nan_count=feature_nan_count,
             label_nan_count=label_nan_count,
-            feature_clip_count=feature_clip_count,
+            feature_clip_count=0,
             label_clip_count=label_clip_count,
         )
 
@@ -119,6 +110,38 @@ class Alpha158WindowDataset(Dataset):
 
     def sample_target_dates(self) -> list[pd.Timestamp]:
         return self.meta.dates[self.window :]
+
+    def normalize_features(
+        self,
+        sample_indices: list[int],
+        mode: str = "zscore",
+        clip: float | None = 10.0,
+    ) -> None:
+        """Normalize features using only windows covered by training samples."""
+        if mode == "none":
+            self.meta.feature_norm = "none"
+            return
+        date_mask = np.zeros(len(self.meta.dates), dtype=bool)
+        for idx in sample_indices:
+            date_mask[idx : idx + self.window] = True
+        fit_values = self.features[date_mask]
+        if mode == "zscore":
+            center = fit_values.mean(axis=(0, 1), keepdims=True)
+            scale = fit_values.std(axis=(0, 1), keepdims=True)
+        elif mode == "robust":
+            center = np.median(fit_values, axis=(0, 1), keepdims=True)
+            q75 = np.percentile(fit_values, 75, axis=(0, 1), keepdims=True)
+            q25 = np.percentile(fit_values, 25, axis=(0, 1), keepdims=True)
+            scale = q75 - q25
+        else:
+            raise ValueError(f"Unsupported feature normalization mode: {mode}")
+        self.features = (self.features - center) / np.maximum(scale, 1e-6)
+        clip_count = 0
+        if clip is not None:
+            clip_count = int((np.abs(self.features) > clip).sum())
+            self.features = np.clip(self.features, -clip, clip)
+        self.meta.feature_clip_count = clip_count
+        self.meta.feature_norm = mode
 
 
 def _normalize_qlib_frame(df: pd.DataFrame) -> pd.DataFrame:

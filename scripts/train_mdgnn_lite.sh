@@ -14,9 +14,9 @@ TRAIN_END="${TRAIN_END:-}"
 VALID_START="${VALID_START:-}"
 VALID_END="${VALID_END:-}"
 VALID_RATIO="${VALID_RATIO:-0.2}"
+FEATURE_NORM="${FEATURE_NORM:-zscore}"
 FEATURE_CLIP="${FEATURE_CLIP:-10.0}"
 LABEL_CLIP="${LABEL_CLIP:-0.2}"
-STANDARDIZE="${STANDARDIZE:-1}"
 BATCH_SIZE="${BATCH_SIZE:-8}"
 EPOCHS="${EPOCHS:-20}"
 LR="${LR:-0.001}"
@@ -31,6 +31,7 @@ cmd=(
   --labels "${LABELS}"
   --window "${WINDOW}"
   --valid-ratio "${VALID_RATIO}"
+  --feature-norm "${FEATURE_NORM}"
   --feature-clip "${FEATURE_CLIP}"
   --label-clip "${LABEL_CLIP}"
   --batch-size "${BATCH_SIZE}"
@@ -58,10 +59,6 @@ fi
 
 if [[ -n "${VALID_END}" ]]; then
   cmd+=(--valid-end "${VALID_END}")
-fi
-
-if [[ "${STANDARDIZE}" != "1" ]]; then
-  cmd+=(--no-standardize)
 fi
 
 if [[ "${DEBUG}" == "1" ]]; then

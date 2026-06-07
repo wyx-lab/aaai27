@@ -73,12 +73,14 @@ bash scripts/train_mdgnn_lite.sh
 Training logs include dataset range, train/validation ranges, batch tensor
 shapes, loss function, validation loss, validation IC, and validation RankIC.
 
-For numerical stability, features are standardized and clipped by default, and
-labels are clipped before training:
+For numerical stability, features are normalized with training windows only and
+clipped by default. Labels are clipped before training:
 
 ```bash
-FEATURE_CLIP=10.0 LABEL_CLIP=0.2 STANDARDIZE=1 bash scripts/train_mdgnn_lite.sh
+FEATURE_NORM=zscore FEATURE_CLIP=10.0 LABEL_CLIP=0.2 bash scripts/train_mdgnn_lite.sh
 ```
+
+`FEATURE_NORM` supports `zscore`, `robust`, and `none`.
 
 The trainer can also consume relation graphs:
 
