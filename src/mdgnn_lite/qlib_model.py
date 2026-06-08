@@ -81,6 +81,9 @@ class MDGNNQlibModel(Model):
     def fit(self, dataset, evals_result=None, **kwargs):
         train_df = dataset.prepare("train", col_set=["feature", "label"], data_key="learn")
         valid_df = dataset.prepare("valid", col_set=["feature", "label"], data_key="learn")
+        if valid_df is None or valid_df.empty:
+            print("segment[valid] is empty; splitting tail validation from train segment")
+            train_df, valid_df = split_frame_by_dates(train_df, valid_ratio=0.2)
         print_frame_info("train", train_df)
         print_frame_info("valid", valid_df)
         train_x, train_y, train_meta = self._frame_to_panel(train_df, segment="train")
@@ -140,6 +143,10 @@ class MDGNNQlibModel(Model):
         if self.model is None:
             raise ValueError("Model is not fitted")
         test_df = dataset.prepare(segment, col_set=["feature"], data_key="infer")
+        if test_df is None or test_df.empty:
+            print(f"segment[{segment}] is empty; falling back to train segment tail for prediction")
+            full_df = dataset.prepare("train", col_set=["feature"], data_key="infer")
+            _, test_df = split_frame_by_dates(full_df, valid_ratio=0.2)
         print_frame_info(segment, test_df)
         x, _, meta = self._frame_to_panel(test_df, has_label=False, segment=segment)
         x = self._transform_features(x)
@@ -278,3 +285,21 @@ def print_frame_info(name: str, df: pd.DataFrame) -> None:
         f"n_dates={dates.nunique()} n_instruments={instruments.nunique()} "
         f"columns={list(df.columns)[:5]}"
     )
+
+
+def split_frame_by_dates(df: pd.DataFrame, valid_ratio: float) -> tuple[pd.DataFrame, pd.DataFrame]:
+    if df is None or df.empty:
+        raise ValueError("Cannot split empty dataframe")
+    dates = sorted(df.index.get_level_values("datetime").unique())
+    if len(dates) < 3:
+        raise ValueError(f"Need at least 3 dates for fallback split, got {len(dates)}")
+    valid_size = max(1, int(len(dates) * valid_ratio))
+    valid_start = dates[-valid_size]
+    train = df[df.index.get_level_values("datetime") < valid_start]
+    valid = df[df.index.get_level_values("datetime") >= valid_start]
+    if train.empty or valid.empty:
+        raise ValueError(
+            f"Fallback split failed: train_empty={train.empty} valid_empty={valid.empty} "
+            f"n_dates={len(dates)} valid_start={valid_start}"
+        )
+    return train, valid
