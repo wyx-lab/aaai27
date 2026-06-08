@@ -59,6 +59,7 @@ class MDGNNQlibModel(Model):
         feature_norm: str = "none",
         feature_clip: float | None = None,
         label_clip: float | None = None,
+        pos_weight: float | None = None,
     ) -> None:
         self.window = window
         self.hidden_dim = hidden_dim
@@ -73,6 +74,7 @@ class MDGNNQlibModel(Model):
         self.feature_norm = feature_norm
         self.feature_clip = feature_clip
         self.label_clip = label_clip
+        self.pos_weight = pos_weight
         self.model: MDGNNLite | None = None
         self.feature_center: np.ndarray | None = None
         self.feature_scale: np.ndarray | None = None
@@ -111,7 +113,7 @@ class MDGNNQlibModel(Model):
         ).to(self.device)
         relation = torch.eye(len(train_meta.instruments), dtype=torch.float32, device=self.device).unsqueeze(0)
         optim = torch.optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-        loss_fn = nn.MSELoss()
+        loss_fn = self._build_wce_loss(train_y)
 
         print(
             "qlib_mdgnn: "
@@ -120,7 +122,7 @@ class MDGNNQlibModel(Model):
             f"instruments={len(train_meta.instruments)} feature_dim={train_meta.feature_dim} "
             f"window={self.window} batch_size={self.batch_size} feature_norm={self.feature_norm}"
         )
-        print("loss_fn: MSELoss; metrics: valid IC, valid RankIC")
+        print("loss_fn: weighted BCEWithLogitsLoss on sign(label); score: exp(logit); metrics: valid IC, valid RankIC")
 
         for epoch in range(1, self.epochs + 1):
             self.model.train()
@@ -129,8 +131,8 @@ class MDGNNQlibModel(Model):
             for x, y in train_loader:
                 x = x.to(self.device)
                 y = y.to(self.device)
-                pred = self.model(x, relation)
-                loss = loss_fn(pred, y)
+                logit = self.model(x, relation)
+                loss = loss_fn(logit, label_to_binary(y))
                 optim.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_(self.model.parameters(), 3.0)
@@ -167,8 +169,9 @@ class MDGNNQlibModel(Model):
         preds: list[np.ndarray] = []
         with torch.no_grad():
             for xb, _ in loader:
-                pred = self.model(xb.to(self.device), relation)
-                preds.append(pred.detach().cpu().numpy()[0])
+                logit = self.model(xb.to(self.device), relation)
+                score = torch.exp(logit.clamp(max=20.0))
+                preds.append(score.detach().cpu().numpy()[0])
         index = pd.MultiIndex.from_product(
             [meta.dates[self.window :], meta.instruments],
             names=["datetime", "instrument"],
@@ -260,11 +263,23 @@ class MDGNNQlibModel(Model):
             for x, y in loader:
                 x = x.to(self.device)
                 y = y.to(self.device)
-                pred = self.model(x, relation)
-                losses.append(float(loss_fn(pred, y).detach()))
-                ics.extend(_batch_corr(pred, y, rank=False))
-                rankics.extend(_batch_corr(pred, y, rank=True))
+                logit = self.model(x, relation)
+                score = torch.exp(logit.clamp(max=20.0))
+                losses.append(float(loss_fn(logit, label_to_binary(y)).detach()))
+                ics.extend(_batch_corr(score, y, rank=False))
+                rankics.extend(_batch_corr(score, y, rank=True))
         return _mean(losses), _mean(ics), _mean(rankics)
+
+    def _build_wce_loss(self, train_y: np.ndarray) -> nn.Module:
+        if self.pos_weight is not None:
+            pos_weight = float(self.pos_weight)
+        else:
+            target = train_y > 0
+            pos = max(float(target.sum()), 1.0)
+            neg = max(float(target.size - target.sum()), 1.0)
+            pos_weight = neg / pos
+        print(f"wce_pos_weight={pos_weight:.6f}")
+        return nn.BCEWithLogitsLoss(pos_weight=torch.tensor(pos_weight, device=self.device))
 
 
 def _batch_corr(pred: torch.Tensor, y: torch.Tensor, rank: bool) -> list[float]:
@@ -278,6 +293,10 @@ def _batch_corr(pred: torch.Tensor, y: torch.Tensor, rank: bool) -> list[float]:
         denom = torch.sqrt((p.square().sum() * t.square().sum()).clamp_min(1e-12))
         values.append(float((p * t).sum() / denom))
     return values
+
+
+def label_to_binary(y: torch.Tensor) -> torch.Tensor:
+    return (y > 0).float()
 
 
 def _rank(x: torch.Tensor) -> torch.Tensor:
