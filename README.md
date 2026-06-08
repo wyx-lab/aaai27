@@ -1,14 +1,15 @@
 # Quant Trading Prediction Research
 
-This repository contains a lightweight reproduction scaffold for stock-return
-prediction experiments with Qlib Alpha158 features and an MDGNN-style model.
+This repository contains a Qlib workflow for stock-return prediction experiments
+with Alpha158 features and an MDGNN-style model.
 
 ## Components
 
-- `scripts/export_alpha158_qlib.py` exports Qlib Alpha158 features and labels to
-  parquet files.
+- `configs/mdgnn_alpha158.yaml` runs Qlib Alpha158 + MDGNN-lite with qrun.
+- `src/mdgnn_lite/qlib_model.py` implements a Qlib `Model` wrapper.
+- `scripts/run_qlib_mdgnn.sh` starts the Qlib workflow.
 - `src/mdgnn_lite/` contains a PyTorch dataset, relation-graph loader,
-  MDGNN-lite model, and training entrypoint.
+  MDGNN-lite model, and legacy standalone training entrypoint.
 
 Local PDFs and generated datasets are ignored by git.
 
@@ -36,21 +37,24 @@ python scripts/get_data.py qlib_data \
   --region cn
 ```
 
-## Export Alpha158
+## Run Qlib MDGNN
 
-From this repository:
-
-```bash
-bash scripts/dump_alpha158.sh
-```
-
-Override defaults with environment variables:
+The main entrypoint uses Qlib's DatasetH, Alpha158 handler, workflow recorder,
+signal analysis, and portfolio analysis.
 
 ```bash
-INSTRUMENTS=csi300 START=2018-01-01 END=2023-12-31 LABEL_HORIZON=5 bash scripts/dump_alpha158.sh
+bash scripts/run_qlib_mdgnn.sh
 ```
 
-The exported label is:
+The config uses:
+
+- Alpha158 features
+- five-day tradable return label
+- `RobustZScoreNorm` + `Fillna` for features
+- `DropnaLabel` + `CSRankNorm` for labels
+- Qlib `SignalRecord`, `SigAnaRecord`, and `PortAnaRecord`
+
+The configured label is:
 
 ```text
 LABEL0 = Ref($close, -LABEL_HORIZON) / Ref($close, -1) - 1
@@ -58,6 +62,15 @@ LABEL0 = Ref($close, -LABEL_HORIZON) / Ref($close, -1) - 1
 
 With the default `LABEL_HORIZON=5`, this is the tradable forward return from
 T+1 close to T+5 close.
+
+## Legacy Parquet Flow
+
+The previous standalone PyTorch path is still available:
+
+```bash
+bash scripts/dump_alpha158.sh
+bash scripts/train_mdgnn_lite.sh
+```
 
 ## Train MDGNN-lite
 
