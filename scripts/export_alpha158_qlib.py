@@ -81,8 +81,9 @@ def build_forward_label(instruments: str, start: str, end: str, horizon: int):
     from qlib.data import D
 
     expr = f"Ref($close, -{horizon}) / Ref($close, -1) - 1"
+    instruments_config = D.instruments(instruments) if isinstance(instruments, str) else instruments
     labels = D.features(
-        instruments=instruments,
+        instruments=instruments_config,
         fields=[expr],
         start_time=start,
         end_time=end,
