@@ -50,6 +50,7 @@ bash scripts/run_qlib_mdgnn.sh
 The config uses:
 
 - Alpha158 features
+- CSI500 universe with `SH000905` benchmark
 - five-day tradable return label
 - `RobustZScoreNorm` + `Fillna` for features
 - `DropnaLabel` + `CSRankNorm` for labels
@@ -69,6 +70,10 @@ LABEL0 = Ref($close, -LABEL_HORIZON) / Ref($close, -1) - 1
 
 With the default `LABEL_HORIZON=5`, this is the tradable forward return from
 T+1 close to T+5 close.
+
+The default date range is `2018-01-01` to `2020-12-31` because the commonly
+downloaded public Qlib China data package often ends around 2020. If your data
+provider has newer bars, update `configs/mdgnn_alpha158.yaml`.
 
 ## Legacy Parquet Flow
 
@@ -94,8 +99,8 @@ EPOCHS=50 BATCH_SIZE=4 WINDOW=20 bash scripts/train_mdgnn_lite.sh
 Use explicit train/validation target-date ranges:
 
 ```bash
-TRAIN_START=2018-01-01 TRAIN_END=2022-12-31 \
-VALID_START=2023-01-01 VALID_END=2023-12-31 \
+TRAIN_START=2018-01-01 TRAIN_END=2019-12-31 \
+VALID_START=2020-01-01 VALID_END=2020-06-30 \
 bash scripts/train_mdgnn_lite.sh
 ```
 
@@ -122,7 +127,7 @@ pipeline can be tested first.
 Example with relations:
 
 ```bash
-RELATIONS=data/relations/csi300_relations.npy bash scripts/train_mdgnn_lite.sh
+RELATIONS=data/relations/csi500_relations.npy bash scripts/train_mdgnn_lite.sh
 ```
 
 Debug NaN losses:
