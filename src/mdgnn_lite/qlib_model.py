@@ -81,8 +81,10 @@ class MDGNNQlibModel(Model):
     def fit(self, dataset, evals_result=None, **kwargs):
         train_df = dataset.prepare("train", col_set=["feature", "label"], data_key="learn")
         valid_df = dataset.prepare("valid", col_set=["feature", "label"], data_key="learn")
-        train_x, train_y, train_meta = self._frame_to_panel(train_df)
-        valid_x, valid_y, valid_meta = self._frame_to_panel(valid_df)
+        print_frame_info("train", train_df)
+        print_frame_info("valid", valid_df)
+        train_x, train_y, train_meta = self._frame_to_panel(train_df, segment="train")
+        valid_x, valid_y, valid_meta = self._frame_to_panel(valid_df, segment="valid")
         self._fit_feature_norm(train_x)
         train_x = self._transform_features(train_x)
         valid_x = self._transform_features(valid_x)
@@ -138,7 +140,8 @@ class MDGNNQlibModel(Model):
         if self.model is None:
             raise ValueError("Model is not fitted")
         test_df = dataset.prepare(segment, col_set=["feature"], data_key="infer")
-        x, _, meta = self._frame_to_panel(test_df, has_label=False)
+        print_frame_info(segment, test_df)
+        x, _, meta = self._frame_to_panel(test_df, has_label=False, segment=segment)
         x = self._transform_features(x)
         loader = DataLoader(QlibPanelDataset(x, np.zeros((len(x), len(meta.instruments)), dtype=np.float32), self.window), 1)
         relation = torch.eye(len(meta.instruments), dtype=torch.float32, device=self.device).unsqueeze(0)
@@ -154,16 +157,31 @@ class MDGNNQlibModel(Model):
         )
         return pd.Series(np.concatenate(preds), index=index, name="score")
 
-    def _frame_to_panel(self, df: pd.DataFrame, has_label: bool = True):
+    def _frame_to_panel(self, df: pd.DataFrame, has_label: bool = True, segment: str = "unknown"):
+        if df is None or df.empty:
+            columns = None if df is None else list(df.columns)
+            raise ValueError(
+                f"Qlib segment '{segment}' is empty after prepare(). "
+                f"Check dataset segments, label config, and processors. columns={columns}"
+            )
         df = df.sort_index()
         if isinstance(df.columns, pd.MultiIndex):
-            feature_df = df["feature"]
-            label_df = df["label"] if has_label and "label" in df.columns.get_level_values(0) else None
+            top = df.columns.get_level_values(0)
+            if "feature" in top:
+                feature_df = df["feature"]
+            else:
+                feature_df = df
+            label_df = df["label"] if has_label and "label" in top else None
         else:
             feature_df = df
             label_df = None
         dates = sorted(df.index.get_level_values("datetime").unique())
         instruments = sorted(df.index.get_level_values("instrument").unique())
+        if not dates or not instruments:
+            raise ValueError(
+                f"Qlib segment '{segment}' has no dates or instruments after prepare(): "
+                f"dates={len(dates)} instruments={len(instruments)} shape={df.shape}"
+            )
         feature_panel = feature_df.unstack("instrument").reindex(index=dates)
         arr = feature_panel.to_numpy(dtype=np.float32).reshape(len(dates), -1, len(instruments))
         arr = np.transpose(arr, (0, 2, 1))
@@ -243,3 +261,20 @@ def _rank(x: torch.Tensor) -> torch.Tensor:
 
 def _mean(values: list[float]) -> float:
     return float(sum(values) / len(values)) if values else float("nan")
+
+
+def print_frame_info(name: str, df: pd.DataFrame) -> None:
+    if df is None:
+        print(f"segment[{name}]: None")
+        return
+    if df.empty:
+        print(f"segment[{name}]: empty shape={df.shape} columns={list(df.columns)}")
+        return
+    dates = df.index.get_level_values("datetime")
+    instruments = df.index.get_level_values("instrument")
+    print(
+        f"segment[{name}]: shape={df.shape} "
+        f"dates={dates.min().date()}..{dates.max().date()} "
+        f"n_dates={dates.nunique()} n_instruments={instruments.nunique()} "
+        f"columns={list(df.columns)[:5]}"
+    )
