@@ -54,7 +54,8 @@ The config uses:
 - five-day tradable return label
 - `RobustZScoreNorm` + `Fillna` for features
 - `DropnaLabel` + `CSRankNorm` for labels
-- weighted BCE loss on `label > 0`
+- custom weighted classification loss on `label > 0`:
+  `-(w*y*log(p) + log(1-p))`, with `p = sigmoid(logit)`
 - prediction score uses `exp(logit)`
 - no Qlib recorder / Mongo / MLflow workflow dependency
 

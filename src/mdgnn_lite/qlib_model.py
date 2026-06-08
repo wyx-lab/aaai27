@@ -122,7 +122,7 @@ class MDGNNQlibModel(Model):
             f"instruments={len(train_meta.instruments)} feature_dim={train_meta.feature_dim} "
             f"window={self.window} batch_size={self.batch_size} feature_norm={self.feature_norm}"
         )
-        print("loss_fn: weighted BCEWithLogitsLoss on sign(label); score: exp(logit); metrics: valid IC, valid RankIC")
+        print("loss_fn: custom -(w*y*log(p) + log(1-p)); p=sigmoid(logit); score: exp(logit)")
 
         for epoch in range(1, self.epochs + 1):
             self.model.train()
@@ -270,7 +270,7 @@ class MDGNNQlibModel(Model):
                 rankics.extend(_batch_corr(score, y, rank=True))
         return _mean(losses), _mean(ics), _mean(rankics)
 
-    def _build_wce_loss(self, train_y: np.ndarray) -> nn.Module:
+    def _build_wce_loss(self, train_y: np.ndarray):
         if self.pos_weight is not None:
             pos_weight = float(self.pos_weight)
         else:
@@ -279,7 +279,14 @@ class MDGNNQlibModel(Model):
             neg = max(float(target.size - target.sum()), 1.0)
             pos_weight = neg / pos
         print(f"wce_pos_weight={pos_weight:.6f}")
-        return nn.BCEWithLogitsLoss(pos_weight=torch.tensor(pos_weight, device=self.device))
+        weight = torch.tensor(pos_weight, device=self.device)
+
+        def loss_fn(logit: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+            p = torch.sigmoid(logit).clamp(1e-6, 1.0 - 1e-6)
+            loss = -(weight * target * torch.log(p) + torch.log(1.0 - p))
+            return loss.mean()
+
+        return loss_fn
 
 
 def _batch_corr(pred: torch.Tensor, y: torch.Tensor, rank: bool) -> list[float]:
