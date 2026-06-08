@@ -12,6 +12,7 @@ data/
 checkpoints/
 runs/
 logs/
+predictions/
 *.pt
 *.pth
 
@@ -25,4 +26,3 @@ nature-skills-unpacked/
 Thumbs.db
 .idea/
 .vscode/
-

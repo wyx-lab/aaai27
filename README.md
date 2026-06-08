@@ -39,8 +39,9 @@ python scripts/get_data.py qlib_data \
 
 ## Run Qlib MDGNN
 
-The main entrypoint uses Qlib's DatasetH, Alpha158 handler, workflow recorder,
-signal analysis, and portfolio analysis.
+The main entrypoint uses Qlib's DatasetH and Alpha158 handler, but does not use
+Qlib workflow recorder. It directly fits the model and writes prediction scores
+to parquet.
 
 ```bash
 bash scripts/run_qlib_mdgnn.sh
@@ -52,7 +53,13 @@ The config uses:
 - five-day tradable return label
 - `RobustZScoreNorm` + `Fillna` for features
 - `DropnaLabel` + `CSRankNorm` for labels
-- Qlib `SignalRecord`, `SigAnaRecord`, and `PortAnaRecord`
+- no Qlib recorder / Mongo / MLflow workflow dependency
+
+Predictions are saved to:
+
+```text
+predictions/mdgnn_scores.parquet
+```
 
 The configured label is:
 
