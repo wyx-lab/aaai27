@@ -44,9 +44,7 @@ model:
     feature_norm: none
     feature_clip: null
     label_clip: null
-    pos_weight: null
-    label_shift: auto
-    label_eps: 0.000001
+    huber_delta: 1.0
 
 dataset:
   class: DatasetH

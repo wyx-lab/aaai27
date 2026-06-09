@@ -59,9 +59,7 @@ class MDGNNQlibModel(Model):
         feature_norm: str = "none",
         feature_clip: float | None = None,
         label_clip: float | None = None,
-        pos_weight: float | None = None,
-        label_shift: float | str = "auto",
-        label_eps: float = 1e-6,
+        huber_delta: float = 1.0,
     ) -> None:
         self.window = window
         self.hidden_dim = hidden_dim
@@ -76,9 +74,7 @@ class MDGNNQlibModel(Model):
         self.feature_norm = feature_norm
         self.feature_clip = feature_clip
         self.label_clip = label_clip
-        self.pos_weight = pos_weight
-        self.label_shift = label_shift
-        self.label_eps = label_eps
+        self.huber_delta = huber_delta
         self.model: MDGNNLite | None = None
         self.feature_center: np.ndarray | None = None
         self.feature_scale: np.ndarray | None = None
@@ -117,7 +113,7 @@ class MDGNNQlibModel(Model):
         ).to(self.device)
         relation = torch.eye(len(train_meta.instruments), dtype=torch.float32, device=self.device).unsqueeze(0)
         optim = torch.optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-        loss_fn = self._build_wce_loss(train_y)
+        loss_fn = nn.SmoothL1Loss(beta=self.huber_delta)
 
         print(
             "qlib_mdgnn: "
@@ -126,7 +122,7 @@ class MDGNNQlibModel(Model):
             f"instruments={len(train_meta.instruments)} feature_dim={train_meta.feature_dim} "
             f"window={self.window} batch_size={self.batch_size} feature_norm={self.feature_norm}"
         )
-        print("loss_fn: custom -(w*y_pos*log(p) + log(1-p)); y_pos = y + shift; score: exp(logit)")
+        print(f"loss_fn: Huber/SmoothL1Loss(beta={self.huber_delta}); score: raw model output")
 
         for epoch in range(1, self.epochs + 1):
             self.model.train()
@@ -135,8 +131,8 @@ class MDGNNQlibModel(Model):
             for x, y in train_loader:
                 x = x.to(self.device)
                 y = y.to(self.device)
-                logit = self.model(x, relation)
-                loss = loss_fn(logit, y)
+                pred = self.model(x, relation)
+                loss = loss_fn(pred, y)
                 optim.zero_grad()
                 loss.backward()
                 nn.utils.clip_grad_norm_(self.model.parameters(), 3.0)
@@ -173,9 +169,8 @@ class MDGNNQlibModel(Model):
         preds: list[np.ndarray] = []
         with torch.no_grad():
             for xb, _ in loader:
-                logit = self.model(xb.to(self.device), relation)
-                score = torch.exp(logit.clamp(max=20.0))
-                preds.append(score.detach().cpu().numpy()[0])
+                pred = self.model(xb.to(self.device), relation)
+                preds.append(pred.detach().cpu().numpy()[0])
         index = pd.MultiIndex.from_product(
             [meta.dates[self.window :], meta.instruments],
             names=["datetime", "instrument"],
@@ -267,34 +262,11 @@ class MDGNNQlibModel(Model):
             for x, y in loader:
                 x = x.to(self.device)
                 y = y.to(self.device)
-                logit = self.model(x, relation)
-                score = torch.exp(logit.clamp(max=20.0))
-                losses.append(float(loss_fn(logit, y).detach()))
-                ics.extend(_batch_corr(score, y, rank=False))
-                rankics.extend(_batch_corr(score, y, rank=True))
+                pred = self.model(x, relation)
+                losses.append(float(loss_fn(pred, y).detach()))
+                ics.extend(_batch_corr(pred, y, rank=False))
+                rankics.extend(_batch_corr(pred, y, rank=True))
         return _mean(losses), _mean(ics), _mean(rankics)
-
-    def _build_wce_loss(self, train_y: np.ndarray):
-        if self.pos_weight is not None:
-            pos_weight = float(self.pos_weight)
-        else:
-            pos_weight = 1.0
-        if self.label_shift == "auto":
-            shift = max(0.0, -float(np.nanmin(train_y))) + self.label_eps
-        else:
-            shift = float(self.label_shift)
-        print(f"wce_pos_weight={pos_weight:.6f} label_shift={shift:.6f}")
-        weight = torch.tensor(pos_weight, device=self.device)
-        shift_tensor = torch.tensor(shift, device=self.device)
-        eps = self.label_eps
-
-        def loss_fn(logit: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-            y_pos = (y + shift_tensor).clamp_min(eps)
-            p = torch.sigmoid(logit).clamp(eps, 1.0 - eps)
-            loss = -(weight * y_pos * torch.log(p) + torch.log(1.0 - p))
-            return loss.mean()
-
-        return loss_fn
 
 
 def _batch_corr(pred: torch.Tensor, y: torch.Tensor, rank: bool) -> list[float]:
