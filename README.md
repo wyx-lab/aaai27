@@ -37,6 +37,26 @@ python scripts/get_data.py qlib_data \
   --region cn
 ```
 
+## Build 2018-2025 Data From AKShare
+
+AKShare does not require a token. Dump raw A-share data into Qlib format:
+
+```bash
+START=20180101 END=20251231 bash scripts/dump_akshare_qlib.sh
+```
+
+Smoke test with a small number of stocks:
+
+```bash
+LIMIT=20 START=20180101 END=20251231 bash scripts/dump_akshare_qlib.sh
+```
+
+Then run MDGNN with the AKShare-backed provider:
+
+```bash
+CONFIG=configs/mdgnn_alpha158_akshare.yaml bash scripts/run_qlib_mdgnn.sh
+```
+
 ## Build 2018-2025 Data From TuShare
 
 Set your token and dump raw TuShare data into Qlib format:
