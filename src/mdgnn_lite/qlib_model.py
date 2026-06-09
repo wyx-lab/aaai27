@@ -302,11 +302,22 @@ def print_frame_info(name: str, df: pd.DataFrame) -> None:
         return
     dates = df.index.get_level_values("datetime")
     instruments = df.index.get_level_values("instrument")
+    feature_cols = 0
+    label_cols = 0
+    if isinstance(df.columns, pd.MultiIndex):
+        top = df.columns.get_level_values(0)
+        feature_cols = int((top == "feature").sum())
+        label_cols = int((top == "label").sum())
+        sample_cols = list(df["feature"].columns[:5]) if feature_cols else list(df.columns[:5])
+    else:
+        feature_cols = len(df.columns)
+        sample_cols = list(df.columns[:5])
     print(
         f"segment[{name}]: shape={df.shape} "
         f"dates={dates.min().date()}..{dates.max().date()} "
         f"n_dates={dates.nunique()} n_instruments={instruments.nunique()} "
-        f"columns={list(df.columns)[:5]}"
+        f"feature_cols={feature_cols} label_cols={label_cols} "
+        f"sample_features={sample_cols}"
     )
 
 

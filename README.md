@@ -72,6 +72,12 @@ Then run MDGNN with the AKShare-backed provider:
 CONFIG=configs/mdgnn_alpha158_akshare.yaml bash scripts/run_qlib_mdgnn.sh
 ```
 
+Check the actual Qlib Alpha158 feature dimension:
+
+```bash
+python scripts/check_alpha158_features.py --config configs/mdgnn_alpha158_akshare.yaml
+```
+
 ## Build 2018-2025 Data From TuShare
 
 Set your token and dump raw TuShare data into Qlib format:
@@ -111,7 +117,7 @@ The config uses:
 - `RobustZScoreNorm` + `Fillna` for features
 - `DropnaLabel` + `CSRankNorm` for labels
 - Huber loss (`SmoothL1Loss`) on normalized five-day returns
-- prediction score uses `exp(logit)`
+- prediction score uses the raw model output
 - no Qlib recorder / Mongo / MLflow workflow dependency
 
 Predictions are saved to:
