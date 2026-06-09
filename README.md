@@ -51,6 +51,15 @@ If EastMoney/AKShare throttles or proxy disconnects, slow down requests:
 SLEEP=1.5 RETRIES=5 RETRY_SLEEP=8 START=20180101 END=20251231 bash scripts/dump_akshare_qlib.sh
 ```
 
+On Windows with Git Bash, use:
+
+```bash
+pip install -r requirements.txt
+LIMIT=20 SKIP_DUMP=1 bash scripts/dump_akshare_qlib_windows.sh
+```
+
+Remove `SKIP_DUMP=1` after the CSV download works and Qlib is installed.
+
 Smoke test with a small number of stocks:
 
 ```bash
