@@ -58,7 +58,11 @@ class MDGNNQlibModel(Model):
         device: str | None = None,
         feature_norm: str = "none",
         feature_clip: float | None = None,
+        label_norm: str = "none",
         label_clip: float | None = None,
+        use_master_attention: bool = False,
+        feature_gate: bool = False,
+        gate_beta: float = 1.0,
     ) -> None:
         self.window = window
         self.hidden_dim = hidden_dim
@@ -72,10 +76,16 @@ class MDGNNQlibModel(Model):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.feature_norm = feature_norm
         self.feature_clip = feature_clip
+        self.label_norm = label_norm
         self.label_clip = label_clip
+        self.use_master_attention = use_master_attention
+        self.feature_gate = feature_gate
+        self.gate_beta = gate_beta
         self.model: MDGNNLite | None = None
         self.feature_center: np.ndarray | None = None
         self.feature_scale: np.ndarray | None = None
+        self.label_center: np.ndarray | None = None
+        self.label_scale: np.ndarray | None = None
         self.meta: PanelMeta | None = None
 
     def fit(self, dataset, evals_result=None, **kwargs):
@@ -93,6 +103,7 @@ class MDGNNQlibModel(Model):
             instruments=train_meta.instruments,
         )
         self._fit_feature_norm(train_x)
+        self._fit_label_norm(train_y)
         train_x = self._transform_features(train_x)
         valid_x = self._transform_features(valid_x)
         train_y = self._transform_labels(train_y)
@@ -108,6 +119,9 @@ class MDGNNQlibModel(Model):
             num_gnn_layers=self.num_gnn_layers,
             num_heads=self.num_heads,
             dropout=self.dropout,
+            use_master_attention=self.use_master_attention,
+            feature_gate=self.feature_gate,
+            gate_beta=self.gate_beta,
         ).to(self.device)
         relation = torch.eye(len(train_meta.instruments), dtype=torch.float32, device=self.device).unsqueeze(0)
         optim = torch.optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
@@ -118,7 +132,9 @@ class MDGNNQlibModel(Model):
             f"train_dates={train_meta.dates[0].date()}..{train_meta.dates[-1].date()} "
             f"valid_dates={valid_meta.dates[0].date()}..{valid_meta.dates[-1].date()} "
             f"instruments={len(train_meta.instruments)} feature_dim={train_meta.feature_dim} "
-            f"window={self.window} batch_size={self.batch_size} feature_norm={self.feature_norm}"
+            f"window={self.window} batch_size={self.batch_size} "
+            f"feature_norm={self.feature_norm} label_norm={self.label_norm} "
+            f"master_attention={self.use_master_attention} feature_gate={self.feature_gate}"
         )
         print("loss_fn: MSELoss; score: raw model output")
 
@@ -230,6 +246,9 @@ class MDGNNQlibModel(Model):
         if self.feature_norm == "zscore":
             self.feature_center = x.mean(axis=(0, 1), keepdims=True)
             self.feature_scale = x.std(axis=(0, 1), keepdims=True)
+        elif self.feature_norm == "ts_zscore":
+            self.feature_center = x.mean(axis=0, keepdims=True)
+            self.feature_scale = x.std(axis=0, keepdims=True)
         elif self.feature_norm == "robust":
             self.feature_center = np.median(x, axis=(0, 1), keepdims=True)
             q75 = np.percentile(x, 75, axis=(0, 1), keepdims=True)
@@ -245,7 +264,25 @@ class MDGNNQlibModel(Model):
             x = np.clip(x, -self.feature_clip, self.feature_clip)
         return x.astype(np.float32)
 
+    def _fit_label_norm(self, y: np.ndarray) -> None:
+        if self.label_norm == "none":
+            self.label_center = None
+            self.label_scale = None
+            return
+        if self.label_norm == "zscore":
+            self.label_center = y.mean(keepdims=True)
+            self.label_scale = y.std(keepdims=True)
+        elif self.label_norm == "robust":
+            self.label_center = np.median(y, keepdims=True)
+            q75 = np.percentile(y, 75, keepdims=True)
+            q25 = np.percentile(y, 25, keepdims=True)
+            self.label_scale = q75 - q25
+        else:
+            raise ValueError(f"Unsupported label_norm={self.label_norm}")
+
     def _transform_labels(self, y: np.ndarray) -> np.ndarray:
+        if self.label_center is not None and self.label_scale is not None:
+            y = (y - self.label_center) / np.maximum(self.label_scale, 1e-6)
         if self.label_clip is not None:
             y = np.clip(y, -self.label_clip, self.label_clip)
         return y.astype(np.float32)

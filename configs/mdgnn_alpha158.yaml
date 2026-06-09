@@ -12,18 +12,11 @@ data_handler_config: &data_handler_config
   fit_end_time: 2019-12-31
   instruments: csi500
   infer_processors:
-    - class: RobustZScoreNorm
-      kwargs:
-        fields_group: feature
-        clip_outlier: true
     - class: Fillna
       kwargs:
         fields_group: feature
   learn_processors:
     - class: DropnaLabel
-    - class: CSRankNorm
-      kwargs:
-        fields_group: label
   label:
     - ["Ref($close, -5) / Ref($close, -1) - 1"]
     - ["LABEL0"]
@@ -41,9 +34,13 @@ model:
     weight_decay: 0.0001
     batch_size: 4
     epochs: 20
-    feature_norm: none
-    feature_clip: null
-    label_clip: null
+    feature_norm: ts_zscore
+    feature_clip: 10.0
+    label_norm: robust
+    label_clip: 10.0
+    use_master_attention: true
+    feature_gate: true
+    gate_beta: 1.0
 
 dataset:
   class: DatasetH

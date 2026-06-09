@@ -78,6 +78,19 @@ Check the actual Qlib Alpha158 feature dimension:
 python scripts/check_alpha158_features.py --config configs/mdgnn_alpha158_akshare.yaml
 ```
 
+Summarize Alpha158 feature ranges after the configured model-side feature
+normalization:
+
+```bash
+python scripts/summarize_alpha158_ranges.py --config configs/mdgnn_alpha158_akshare.yaml
+```
+
+Or:
+
+```bash
+bash scripts/summarize_alpha158_ranges.sh
+```
+
 ## Build 2018-2025 Data From TuShare
 
 Set your token and dump raw TuShare data into Qlib format:
@@ -114,9 +127,12 @@ The config uses:
 - Alpha158 features
 - CSI500 universe with `SH000905` benchmark
 - five-day tradable return label
-- `RobustZScoreNorm` + `Fillna` for features
-- `DropnaLabel` + `CSRankNorm` for labels
+- `Fillna` for features in Qlib
+- `DropnaLabel` for labels in Qlib
+- time-series z-score feature normalization fitted on the train segment
+- robust median/IQR label normalization fitted on the train segment
 - MSE loss on normalized five-day returns
+- MASTER-style feature gate, temporal attention, and cross-stock attention
 - prediction score uses the raw model output
 - no Qlib recorder / Mongo / MLflow workflow dependency
 
