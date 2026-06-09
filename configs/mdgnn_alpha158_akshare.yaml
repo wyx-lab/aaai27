@@ -44,7 +44,6 @@ model:
     feature_norm: none
     feature_clip: null
     label_clip: null
-    huber_delta: 1.0
 
 dataset:
   class: DatasetH

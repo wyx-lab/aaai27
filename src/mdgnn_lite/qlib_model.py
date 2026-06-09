@@ -59,7 +59,6 @@ class MDGNNQlibModel(Model):
         feature_norm: str = "none",
         feature_clip: float | None = None,
         label_clip: float | None = None,
-        huber_delta: float = 1.0,
     ) -> None:
         self.window = window
         self.hidden_dim = hidden_dim
@@ -74,7 +73,6 @@ class MDGNNQlibModel(Model):
         self.feature_norm = feature_norm
         self.feature_clip = feature_clip
         self.label_clip = label_clip
-        self.huber_delta = huber_delta
         self.model: MDGNNLite | None = None
         self.feature_center: np.ndarray | None = None
         self.feature_scale: np.ndarray | None = None
@@ -113,7 +111,7 @@ class MDGNNQlibModel(Model):
         ).to(self.device)
         relation = torch.eye(len(train_meta.instruments), dtype=torch.float32, device=self.device).unsqueeze(0)
         optim = torch.optim.AdamW(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
-        loss_fn = nn.SmoothL1Loss(beta=self.huber_delta)
+        loss_fn = nn.MSELoss()
 
         print(
             "qlib_mdgnn: "
@@ -122,7 +120,7 @@ class MDGNNQlibModel(Model):
             f"instruments={len(train_meta.instruments)} feature_dim={train_meta.feature_dim} "
             f"window={self.window} batch_size={self.batch_size} feature_norm={self.feature_norm}"
         )
-        print(f"loss_fn: Huber/SmoothL1Loss(beta={self.huber_delta}); score: raw model output")
+        print("loss_fn: MSELoss; score: raw model output")
 
         for epoch in range(1, self.epochs + 1):
             self.model.train()

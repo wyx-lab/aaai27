@@ -116,15 +116,23 @@ The config uses:
 - five-day tradable return label
 - `RobustZScoreNorm` + `Fillna` for features
 - `DropnaLabel` + `CSRankNorm` for labels
-- Huber loss (`SmoothL1Loss`) on normalized five-day returns
+- MSE loss on normalized five-day returns
 - prediction score uses the raw model output
 - no Qlib recorder / Mongo / MLflow workflow dependency
 
-Predictions are saved to:
+Predictions and evaluation outputs are saved to:
 
 ```text
 predictions/mdgnn_scores.parquet
+predictions/mdgnn_metrics.json
+predictions/mdgnn_daily_metrics.parquet
 ```
+
+The evaluation reports test IC, RankIC, equal-weight Top-K return, Precision@K,
+long-short Top-K minus Bottom-K return, annualized return, Sharpe, max drawdown,
+win rate, turnover, number of valid test days, and number of evaluated
+observations.
+Use `TOPK=50 bash scripts/run_qlib_mdgnn.sh` to change the portfolio size.
 
 The configured label is:
 
