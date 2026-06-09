@@ -28,8 +28,10 @@ if [[ ! -d "${QLIB_REPO_DIR}/.git" ]]; then
 fi
 
 python "${QLIB_REPO_DIR}/scripts/dump_bin.py" dump_all \
-  --csv_path "${CSV_DIR}" \
+  --data_path "${CSV_DIR}" \
   --qlib_dir "${QLIB_DIR}" \
+  --date_field_name date \
+  --symbol_field_name symbol \
   --include_fields open,high,low,close,volume,factor
 
 echo "qlib_dir=${QLIB_DIR}"
