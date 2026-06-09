@@ -45,6 +45,12 @@ AKShare does not require a token. Dump raw A-share data into Qlib format:
 START=20180101 END=20251231 bash scripts/dump_akshare_qlib.sh
 ```
 
+If EastMoney/AKShare throttles or proxy disconnects, slow down requests:
+
+```bash
+SLEEP=1.5 RETRIES=5 RETRY_SLEEP=8 START=20180101 END=20251231 bash scripts/dump_akshare_qlib.sh
+```
+
 Smoke test with a small number of stocks:
 
 ```bash

@@ -9,6 +9,9 @@ QLIB_DIR="${QLIB_DIR:-$HOME/.qlib/qlib_data/akshare_cn_data}"
 QLIB_REPO_DIR="${QLIB_REPO_DIR:-/tmp/qlib}"
 ADJUST="${ADJUST:-qfq}"
 LIMIT="${LIMIT:-}"
+SLEEP="${SLEEP:-0.5}"
+RETRIES="${RETRIES:-3}"
+RETRY_SLEEP="${RETRY_SLEEP:-3.0}"
 
 download_cmd=(
   python scripts/download_akshare_daily.py
@@ -17,6 +20,9 @@ download_cmd=(
   --raw-dir "${RAW_DIR}"
   --csv-dir "${CSV_DIR}"
   --adjust "${ADJUST}"
+  --sleep "${SLEEP}"
+  --retries "${RETRIES}"
+  --retry-sleep "${RETRY_SLEEP}"
 )
 
 if [[ -n "${LIMIT}" ]]; then

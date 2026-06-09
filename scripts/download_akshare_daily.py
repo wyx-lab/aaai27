@@ -16,7 +16,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--raw-dir", default="data/akshare_raw")
     parser.add_argument("--csv-dir", default="data/akshare_qlib_csv")
     parser.add_argument("--adjust", default="qfq", choices=["", "qfq", "hfq"])
-    parser.add_argument("--sleep", type=float, default=0.05)
+    parser.add_argument("--sleep", type=float, default=0.5)
+    parser.add_argument("--retries", type=int, default=3)
+    parser.add_argument("--retry-sleep", type=float, default=3.0)
     parser.add_argument("--limit", type=int, default=None, help="Optional stock count limit for smoke tests.")
     return parser.parse_args()
 
@@ -41,12 +43,13 @@ def main() -> None:
         if out_path.exists():
             continue
         try:
-            daily = ak.stock_zh_a_hist(
+            daily = fetch_daily_with_retry(
                 symbol=symbol6,
-                period="daily",
-                start_date=args.start,
-                end_date=args.end,
+                start=args.start,
+                end=args.end,
                 adjust=args.adjust,
+                retries=args.retries,
+                retry_sleep=args.retry_sleep,
             )
         except Exception as exc:
             print(f"skip {symbol6}: {exc}")
@@ -79,6 +82,33 @@ def normalize_stock_list(df: pd.DataFrame) -> pd.DataFrame:
     df = df[["code", "name"]].copy()
     df["code"] = df["code"].astype(str).str.zfill(6)
     return df
+
+
+def fetch_daily_with_retry(
+    symbol: str,
+    start: str,
+    end: str,
+    adjust: str,
+    retries: int,
+    retry_sleep: float,
+) -> pd.DataFrame:
+    last_error: Exception | None = None
+    for attempt in range(1, retries + 1):
+        try:
+            return ak.stock_zh_a_hist(
+                symbol=symbol,
+                period="daily",
+                start_date=start,
+                end_date=end,
+                adjust=adjust,
+            )
+        except Exception as exc:
+            last_error = exc
+            wait = retry_sleep * attempt
+            print(f"retry {attempt}/{retries} {symbol}: {exc}; sleep={wait:.1f}s")
+            time.sleep(wait)
+    assert last_error is not None
+    raise last_error
 
 
 def normalize_daily(df: pd.DataFrame, qlib_symbol: str) -> pd.DataFrame:
