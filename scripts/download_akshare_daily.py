@@ -15,10 +15,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--end", default="20251231")
     parser.add_argument("--raw-dir", default="data/akshare_raw")
     parser.add_argument("--csv-dir", default="data/akshare_qlib_csv")
-    parser.add_argument("--adjust", default="qfq", choices=["", "qfq", "hfq"])
-    parser.add_argument("--sleep", type=float, default=0.5)
-    parser.add_argument("--retries", type=int, default=3)
-    parser.add_argument("--retry-sleep", type=float, default=3.0)
+    parser.add_argument("--adjust", default="hfq", choices=["", "qfq", "hfq"])
+    parser.add_argument("--sleep", type=float, default=0.1)
+    parser.add_argument("--retries", type=int, default=1)
+    parser.add_argument("--retry-sleep", type=float, default=0.5)
     parser.add_argument("--limit", type=int, default=None, help="Optional stock count limit for smoke tests.")
     return parser.parse_args()
 
@@ -44,7 +44,7 @@ def main() -> None:
             continue
         try:
             daily = fetch_daily_with_retry(
-                symbol=symbol6,
+                symbol=qlib_symbol,
                 start=args.start,
                 end=args.end,
                 adjust=args.adjust,
@@ -95,9 +95,8 @@ def fetch_daily_with_retry(
     last_error: Exception | None = None
     for attempt in range(1, retries + 1):
         try:
-            return ak.stock_zh_a_hist(
+            return ak.stock_zh_a_daily(
                 symbol=symbol,
-                period="daily",
                 start_date=start,
                 end_date=end,
                 adjust=adjust,
