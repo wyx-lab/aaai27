@@ -3,4 +3,5 @@ numpy
 pyarrow
 torch
 pyqlib
-
+tushare
+tqdm

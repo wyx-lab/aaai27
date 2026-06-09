@@ -37,6 +37,27 @@ python scripts/get_data.py qlib_data \
   --region cn
 ```
 
+## Build 2018-2025 Data From TuShare
+
+Set your token and dump raw TuShare data into Qlib format:
+
+```bash
+export TUSHARE_TOKEN=your_token_here
+START=20180101 END=20251231 bash scripts/dump_tushare_qlib.sh
+```
+
+Smoke test with a small number of stocks:
+
+```bash
+LIMIT=20 START=20180101 END=20251231 bash scripts/dump_tushare_qlib.sh
+```
+
+Then run MDGNN with the TuShare-backed provider:
+
+```bash
+CONFIG=configs/mdgnn_alpha158_tushare.yaml bash scripts/run_qlib_mdgnn.sh
+```
+
 ## Run Qlib MDGNN
 
 The main entrypoint uses Qlib's DatasetH and Alpha158 handler, but does not use
