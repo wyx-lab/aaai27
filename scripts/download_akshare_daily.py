@@ -16,6 +16,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--raw-dir", default="data/akshare_raw")
     parser.add_argument("--csv-dir", default="data/akshare_qlib_csv")
     parser.add_argument("--adjust", default="hfq", choices=["", "qfq", "hfq"])
+    parser.add_argument("--universe", default="csi500", choices=["all", "csi300", "csi500"])
     parser.add_argument("--sleep", type=float, default=0.1)
     parser.add_argument("--retries", type=int, default=1)
     parser.add_argument("--retry-sleep", type=float, default=0.5)
@@ -32,6 +33,7 @@ def main() -> None:
 
     stock_info = ak.stock_info_a_code_name()
     stock_info = normalize_stock_list(stock_info)
+    stock_info = filter_stock_universe(stock_info, args.universe)
     if args.limit:
         stock_info = stock_info.head(args.limit)
     stock_info.to_csv(raw_dir / "stock_info.csv", index=False)
@@ -65,6 +67,7 @@ def main() -> None:
     write_instruments(stock_info, csv_dir, args.start, args.end)
     print(f"raw_dir={raw_dir.resolve()}")
     print(f"csv_dir={csv_dir.resolve()}")
+    print(f"universe={args.universe} stocks={len(stock_info)}")
 
 
 def normalize_stock_list(df: pd.DataFrame) -> pd.DataFrame:
@@ -82,6 +85,17 @@ def normalize_stock_list(df: pd.DataFrame) -> pd.DataFrame:
     df = df[["code", "name"]].copy()
     df["code"] = df["code"].astype(str).str.zfill(6)
     return df
+
+
+def filter_stock_universe(stock_info: pd.DataFrame, universe: str) -> pd.DataFrame:
+    if universe == "all":
+        return stock_info
+    index_code = {"csi300": "000300", "csi500": "000905"}[universe]
+    members = {symbol[-6:] for symbol in fetch_index_members(index_code)}
+    filtered = stock_info[stock_info["code"].isin(members)].copy()
+    if filtered.empty:
+        raise ValueError(f"Universe {universe} produced 0 stocks. Check AKShare index constituent API.")
+    return filtered
 
 
 def fetch_daily_with_retry(

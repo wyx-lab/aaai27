@@ -8,6 +8,7 @@ CSV_DIR="${CSV_DIR:-data/akshare_qlib_csv}"
 QLIB_DIR="${QLIB_DIR:-$HOME/.qlib/qlib_data/akshare_cn_data}"
 QLIB_REPO_DIR="${QLIB_REPO_DIR:-/tmp/qlib}"
 ADJUST="${ADJUST:-qfq}"
+UNIVERSE="${UNIVERSE:-csi500}"
 LIMIT="${LIMIT:-}"
 SLEEP="${SLEEP:-0.5}"
 RETRIES="${RETRIES:-3}"
@@ -20,6 +21,7 @@ download_cmd=(
   --raw-dir "${RAW_DIR}"
   --csv-dir "${CSV_DIR}"
   --adjust "${ADJUST}"
+  --universe "${UNIVERSE}"
   --sleep "${SLEEP}"
   --retries "${RETRIES}"
   --retry-sleep "${RETRY_SLEEP}"
@@ -33,6 +35,7 @@ fi
 
 python scripts/write_akshare_instruments.py \
   --csv-dir "${CSV_DIR}" \
+  --universe "${UNIVERSE}" \
   --start "${START}" \
   --end "${END}"
 
@@ -50,6 +53,7 @@ python "${QLIB_REPO_DIR}/scripts/dump_bin.py" dump_all \
 python scripts/write_akshare_instruments.py \
   --csv-dir "${CSV_DIR}" \
   --qlib-dir "${QLIB_DIR}" \
+  --universe "${UNIVERSE}" \
   --start "${START}" \
   --end "${END}"
 

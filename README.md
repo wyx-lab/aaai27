@@ -39,10 +39,18 @@ python scripts/get_data.py qlib_data \
 
 ## Build 2018-2025 Data From AKShare
 
-AKShare does not require a token. Dump raw A-share data into Qlib format:
+AKShare does not require a token. By default, the dump downloads only CSI500
+constituents and writes them into Qlib format:
 
 ```bash
 START=20180101 END=20251231 bash scripts/dump_akshare_qlib.sh
+```
+
+Change the download universe with `UNIVERSE=all`, `UNIVERSE=csi300`, or
+`UNIVERSE=csi500`:
+
+```bash
+UNIVERSE=csi300 START=20180101 END=20251231 bash scripts/dump_akshare_qlib.sh
 ```
 
 The dump writes Qlib instrument lists for `all`, `csi300`, and `csi500`.
@@ -58,7 +66,8 @@ directory:
 ```bash
 python scripts/write_akshare_instruments.py \
   --csv-dir data/akshare_qlib_csv \
-  --qlib-dir ~/.qlib/qlib_data/akshare_cn_data
+  --qlib-dir ~/.qlib/qlib_data/akshare_cn_data \
+  --universe csi500
 ```
 
 If a training segment is empty, inspect the provider and segments:

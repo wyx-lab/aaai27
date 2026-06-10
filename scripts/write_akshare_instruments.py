@@ -18,6 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Write all/csi300/csi500 Qlib instrument files for AKShare CSV data.")
     parser.add_argument("--csv-dir", default="data/akshare_qlib_csv")
     parser.add_argument("--qlib-dir", default=None, help="Optional dumped Qlib provider dir to receive instrument files.")
+    parser.add_argument("--universe", default="csi500", choices=["all", "csi300", "csi500"])
     parser.add_argument("--start", default="20180101")
     parser.add_argument("--end", default="20251231")
     return parser.parse_args()
@@ -39,10 +40,14 @@ def main() -> None:
     else:
         source = "stock_info_fallback"
         all_symbols = stock_symbols
-    write_instrument_file(inst_dir / "all.txt", all_symbols, start_date, end_date)
-    print(f"instruments/all.txt symbols={len(all_symbols)} source={source}")
-
     available = set(all_symbols)
+    if args.universe == "all":
+        all_file_symbols = all_symbols
+    else:
+        all_file_symbols = [symbol for symbol in fetch_index_members({"csi300": "000300", "csi500": "000905"}[args.universe]) if symbol in available]
+    write_instrument_file(inst_dir / "all.txt", all_file_symbols, start_date, end_date)
+    print(f"instruments/all.txt symbols={len(all_file_symbols)} source={source} universe={args.universe}")
+
     for name, index_code in {"csi300": "000300", "csi500": "000905"}.items():
         members = [symbol for symbol in fetch_index_members(index_code) if symbol in available]
         write_instrument_file(inst_dir / f"{name}.txt", members, start_date, end_date)
