@@ -91,6 +91,12 @@ class MDGNNQlibModel(Model):
     def fit(self, dataset, evals_result=None, **kwargs):
         train_df = dataset.prepare("train", col_set=["feature", "label"], data_key="learn")
         valid_df = dataset.prepare("valid", col_set=["feature", "label"], data_key="learn")
+        if train_df is None or train_df.empty:
+            raise ValueError(
+                "Qlib segment 'train' is empty. Run "
+                "`python scripts/check_qlib_segments.py --config configs/mdgnn_alpha158_akshare.yaml` "
+                "and verify the configured instruments file exists under the Qlib provider directory."
+            )
         if valid_df is None or valid_df.empty:
             print("segment[valid] is empty; splitting tail validation from train segment")
             train_df, valid_df = split_frame_by_dates(train_df, valid_ratio=0.2)

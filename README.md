@@ -61,6 +61,12 @@ python scripts/write_akshare_instruments.py \
   --qlib-dir ~/.qlib/qlib_data/akshare_cn_data
 ```
 
+If a training segment is empty, inspect the provider and segments:
+
+```bash
+python scripts/check_qlib_segments.py --config configs/master_alpha158_akshare.yaml
+```
+
 If EastMoney/AKShare throttles or proxy disconnects, slow down requests:
 
 ```bash
