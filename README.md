@@ -182,6 +182,16 @@ Outputs are written under:
 predictions/baselines/
 ```
 
+Run the standalone MASTER-style reproduction:
+
+```bash
+bash scripts/run_master_qlib.sh
+```
+
+`configs/master_alpha158_akshare.yaml` uses the same AKShare Alpha158 dataset,
+train-fitted time-series feature normalization, robust label normalization, and
+portfolio evaluation outputs as the MDGNN workflow.
+
 The configured label is:
 
 ```text
