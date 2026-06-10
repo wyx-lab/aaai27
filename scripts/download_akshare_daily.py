@@ -149,8 +149,56 @@ def write_instruments(stock_info: pd.DataFrame, csv_dir: Path, start: str, end: 
     inst_dir.mkdir(parents=True, exist_ok=True)
     start_date = pd.to_datetime(start, format="%Y%m%d").strftime("%Y-%m-%d")
     end_date = pd.to_datetime(end, format="%Y%m%d").strftime("%Y-%m-%d")
-    rows = [f"{to_qlib_symbol(str(row.code).zfill(6))}\t{start_date}\t{end_date}\n" for row in stock_info.itertuples(index=False)]
-    (inst_dir / "all.txt").write_text("".join(rows), encoding="utf-8")
+    all_symbols = [to_qlib_symbol(str(row.code).zfill(6)) for row in stock_info.itertuples(index=False)]
+    write_instrument_file(inst_dir / "all.txt", all_symbols, start_date, end_date)
+
+    available = set(all_symbols)
+    for name, index_code in {"csi300": "000300", "csi500": "000905"}.items():
+        try:
+            members = fetch_index_members(index_code)
+        except Exception as exc:
+            print(f"skip instruments/{name}.txt: {exc}")
+            continue
+        members = [symbol for symbol in members if symbol in available]
+        write_instrument_file(inst_dir / f"{name}.txt", members, start_date, end_date)
+        print(f"instruments/{name}.txt symbols={len(members)}")
+
+
+def write_instrument_file(path: Path, symbols: list[str], start_date: str, end_date: str) -> None:
+    rows = [f"{symbol}\t{start_date}\t{end_date}\n" for symbol in sorted(set(symbols))]
+    path.write_text("".join(rows), encoding="utf-8")
+
+
+def fetch_index_members(index_code: str) -> list[str]:
+    fetchers = [
+        lambda: ak.index_stock_cons(symbol=index_code),
+        lambda: ak.index_stock_cons_csindex(symbol=index_code),
+    ]
+    last_error: Exception | None = None
+    for fetcher in fetchers:
+        try:
+            df = fetcher()
+            members = normalize_index_members(df)
+            if members:
+                return members
+        except Exception as exc:
+            last_error = exc
+    if last_error is not None:
+        raise last_error
+    raise ValueError(f"No index members returned for {index_code}")
+
+
+def normalize_index_members(df: pd.DataFrame) -> list[str]:
+    code_col = None
+    for col in df.columns:
+        lower = str(col).lower()
+        if str(col) in {"品种代码", "成分券代码", "证券代码", "代码", "code", "con_code"} or "code" in lower:
+            code_col = col
+            break
+    if code_col is None:
+        raise ValueError(f"Cannot find index member code column in {list(df.columns)}")
+    codes = df[code_col].astype(str).str.extract(r"(\d{6})", expand=False).dropna().unique()
+    return [to_qlib_symbol(code) for code in codes]
 
 
 if __name__ == "__main__":

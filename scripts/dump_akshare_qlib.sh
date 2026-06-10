@@ -31,6 +31,11 @@ fi
 
 "${download_cmd[@]}"
 
+python scripts/write_akshare_instruments.py \
+  --csv-dir "${CSV_DIR}" \
+  --start "${START}" \
+  --end "${END}"
+
 if [[ ! -d "${QLIB_REPO_DIR}/.git" ]]; then
   git clone https://github.com/microsoft/qlib.git "${QLIB_REPO_DIR}"
 fi

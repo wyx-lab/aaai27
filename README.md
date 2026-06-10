@@ -45,6 +45,13 @@ AKShare does not require a token. Dump raw A-share data into Qlib format:
 START=20180101 END=20251231 bash scripts/dump_akshare_qlib.sh
 ```
 
+The dump writes Qlib instrument lists for `all`, `csi300`, and `csi500`.
+If you already have CSV bars and only need to refresh these lists, run:
+
+```bash
+python scripts/write_akshare_instruments.py --csv-dir data/akshare_qlib_csv
+```
+
 If EastMoney/AKShare throttles or proxy disconnects, slow down requests:
 
 ```bash
@@ -70,6 +77,18 @@ Then run MDGNN with the AKShare-backed provider:
 
 ```bash
 CONFIG=configs/mdgnn_alpha158_akshare.yaml bash scripts/run_qlib_mdgnn.sh
+```
+
+Switch the stock universe by editing one field in the AKShare config:
+
+```yaml
+instruments: csi300
+```
+
+or:
+
+```yaml
+instruments: csi500
 ```
 
 Check the actual Qlib Alpha158 feature dimension:

@@ -10,7 +10,7 @@ data_handler_config: &data_handler_config
   end_time: 2025-12-31
   fit_start_time: 2018-01-01
   fit_end_time: 2021-12-31
-  instruments: all
+  instruments: csi500
   infer_processors:
     - class: Fillna
       kwargs:

@@ -36,6 +36,11 @@ fi
 
 "${download_cmd[@]}"
 
+"${PYTHON}" scripts/write_akshare_instruments.py \
+  --csv-dir "${CSV_DIR}" \
+  --start "${START}" \
+  --end "${END}"
+
 if [[ "${SKIP_DUMP}" == "1" ]]; then
   echo "skip dump_bin; csv_dir=${CSV_DIR}"
   exit 0
