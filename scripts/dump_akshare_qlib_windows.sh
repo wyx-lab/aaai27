@@ -57,4 +57,10 @@ fi
   --symbol_field_name symbol \
   --include_fields open,high,low,close,volume,factor
 
+"${PYTHON}" scripts/write_akshare_instruments.py \
+  --csv-dir "${CSV_DIR}" \
+  --qlib-dir "${QLIB_DIR}" \
+  --start "${START}" \
+  --end "${END}"
+
 echo "qlib_dir=${QLIB_DIR}"

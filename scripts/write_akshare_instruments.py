@@ -17,6 +17,7 @@ from download_akshare_daily import (
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Write all/csi300/csi500 Qlib instrument files for AKShare CSV data.")
     parser.add_argument("--csv-dir", default="data/akshare_qlib_csv")
+    parser.add_argument("--qlib-dir", default=None, help="Optional dumped Qlib provider dir to receive instrument files.")
     parser.add_argument("--start", default="20180101")
     parser.add_argument("--end", default="20251231")
     return parser.parse_args()
@@ -45,6 +46,14 @@ def main() -> None:
         members = [symbol for symbol in fetch_index_members(index_code) if symbol in available]
         write_instrument_file(inst_dir / f"{name}.txt", members, start_date, end_date)
         print(f"instruments/{name}.txt symbols={len(members)}")
+
+    if args.qlib_dir:
+        qlib_inst_dir = Path(args.qlib_dir) / "instruments"
+        qlib_inst_dir.mkdir(parents=True, exist_ok=True)
+        for path in inst_dir.glob("*.txt"):
+            target = qlib_inst_dir / path.name
+            target.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+            print(f"copied {path} -> {target}")
 
 
 if __name__ == "__main__":

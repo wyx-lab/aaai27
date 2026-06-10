@@ -52,6 +52,15 @@ If you already have CSV bars and only need to refresh these lists, run:
 python scripts/write_akshare_instruments.py --csv-dir data/akshare_qlib_csv
 ```
 
+If Qlib reports `instrument not exists`, copy the lists into the dumped provider
+directory:
+
+```bash
+python scripts/write_akshare_instruments.py \
+  --csv-dir data/akshare_qlib_csv \
+  --qlib-dir ~/.qlib/qlib_data/akshare_cn_data
+```
+
 If EastMoney/AKShare throttles or proxy disconnects, slow down requests:
 
 ```bash
