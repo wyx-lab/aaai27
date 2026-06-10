@@ -38,6 +38,7 @@ model:
     feature_clip: 10.0
     label_norm: robust
     label_clip: 10.0
+    use_alpha_groups: true
 
 dataset:
   class: DatasetH

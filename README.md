@@ -215,6 +215,9 @@ bash scripts/run_master_qlib.sh
 `configs/master_alpha158_akshare.yaml` uses the same AKShare Alpha158 dataset,
 train-fitted time-series feature normalization, robust label normalization, and
 portfolio evaluation outputs as the MDGNN workflow.
+Alpha158 columns are also grouped semantically before MASTER's temporal
+attention; each group is projected into a group hidden state and fused with
+group attention.
 
 The configured label is:
 

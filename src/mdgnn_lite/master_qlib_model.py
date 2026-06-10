@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 
 from qlib.model.base import Model
 
+from .alpha_groups import build_alpha158_groups
 from .master_model import MASTERLite
 from .qlib_model import PanelMeta, QlibPanelDataset, print_frame_info, split_frame_by_dates
 
@@ -29,6 +30,7 @@ class MASTERQlibModel(Model):
         feature_clip: float | None = None,
         label_norm: str = "none",
         label_clip: float | None = None,
+        use_alpha_groups: bool = True,
     ) -> None:
         self.window = window
         self.hidden_dim = hidden_dim
@@ -44,6 +46,7 @@ class MASTERQlibModel(Model):
         self.feature_clip = feature_clip
         self.label_norm = label_norm
         self.label_clip = label_clip
+        self.use_alpha_groups = use_alpha_groups
         self.model: MASTERLite | None = None
         self.feature_center: np.ndarray | None = None
         self.feature_scale: np.ndarray | None = None
@@ -67,6 +70,10 @@ class MASTERQlibModel(Model):
         print_frame_info("valid", valid_df)
         train_x, train_y, train_meta = self._frame_to_panel(train_df, segment="train")
         valid_x, valid_y, valid_meta = self._frame_to_panel(valid_df, segment="valid", instruments=train_meta.instruments)
+        feature_names = extract_feature_names(train_df)
+        group_indices = build_alpha158_groups(feature_names) if self.use_alpha_groups else None
+        if group_indices:
+            print("alpha_groups: " + ", ".join(f"{name}={len(indices)}" for name, indices in group_indices.items()))
         self._fit_feature_norm(train_x)
         self._fit_label_norm(train_y)
         train_x = self._transform_features(train_x)
@@ -79,6 +86,7 @@ class MASTERQlibModel(Model):
         valid_loader = DataLoader(QlibPanelDataset(valid_x, valid_y, self.window), self.batch_size, shuffle=False)
         self.model = MASTERLite(
             feature_dim=train_meta.feature_dim,
+            group_indices=group_indices,
             hidden_dim=self.hidden_dim,
             num_heads=self.num_heads,
             dropout=self.dropout,
@@ -93,7 +101,8 @@ class MASTERQlibModel(Model):
             f"valid_dates={valid_meta.dates[0].date()}..{valid_meta.dates[-1].date()} "
             f"instruments={len(train_meta.instruments)} feature_dim={train_meta.feature_dim} "
             f"window={self.window} batch_size={self.batch_size} "
-            f"feature_norm={self.feature_norm} label_norm={self.label_norm}"
+            f"feature_norm={self.feature_norm} label_norm={self.label_norm} "
+            f"alpha_groups={self.use_alpha_groups}"
         )
         print("loss_fn: MSELoss; score: raw model output")
 
@@ -251,3 +260,9 @@ def _rank(x: torch.Tensor) -> torch.Tensor:
 
 def _mean(values: list[float]) -> float:
     return float(sum(values) / len(values)) if values else float("nan")
+
+
+def extract_feature_names(df: pd.DataFrame) -> list[str]:
+    if isinstance(df.columns, pd.MultiIndex) and "feature" in df.columns.get_level_values(0):
+        return [str(col) for col in df["feature"].columns]
+    return [str(col) for col in df.columns]
