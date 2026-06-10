@@ -150,6 +150,19 @@ win rate, turnover, number of valid test days, and number of evaluated
 observations.
 Use `TOPK=50 bash scripts/run_qlib_mdgnn.sh` to change the portfolio size.
 
+Run flat factor baselines to sanity-check Alpha158 and labels:
+
+```bash
+MODEL=mlp EPOCHS=5 bash scripts/run_factor_baselines.sh
+MODEL=xgboost bash scripts/run_factor_baselines.sh
+```
+
+Outputs are written under:
+
+```text
+predictions/baselines/
+```
+
 The configured label is:
 
 ```text

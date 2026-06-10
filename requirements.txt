@@ -6,3 +6,4 @@ pyqlib
 tushare
 akshare
 tqdm
+xgboost
